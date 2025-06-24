@@ -220,12 +220,45 @@ $playerIcons = [
         }
 
         #movelist {
-            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+
+        #movelist.minimized {
+            max-height: 50px;
+            overflow: hidden;
         }
 
         #movelist h4 {
             cursor: pointer;
             margin-bottom: 10px;
+            position: sticky;
+            top: 0;
+            background: #f8f9fa;
+            padding: 5px 0;
+            margin: 0 0 10px 0;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .moves-minimize-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 2px 6px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        .moves-minimize-btn:hover {
+            background: #5a6268;
         }
 
         #movelist ul {
@@ -233,13 +266,18 @@ $playerIcons = [
             padding: 0;
             margin: 0 0 5px 0;
         }
-
-        #movelist li {
+    
+        #movelist li.rounds{
+            display: inline-block;
+            font-weight: bold;
+            width: 3ch;
+            font-family: monospace;
+        }
+        #movelist li.moves{
             display: inline-block;
             font-weight: normal;
-            width: 6ch;
+            width: 5ch;
             font-family: monospace;
-            margin-right: 1em;
             border-radius: 3px;
             text-align: center;
         }
@@ -300,7 +338,6 @@ $playerIcons = [
         }
 
         button, select {
-            font-size: 200%;
             min-width: 4rem;
         }
 
@@ -593,12 +630,14 @@ $playerIcons = [
                     <!-- Move List -->
                     <?php if ($game['status'] == 'active' || $game['status'] == 'finished'): ?>
                         <div id="movelist">
-                            <h4>Moves</h4>
+                            <h4>Moves
+                                <button class="moves-minimize-btn" id="moves-minimize-btn" title="Minimize/Maximize">−</button>
+                            </h4>
                             <div id="movetbl">
                                 <ul>
-
+                                    <li class="rounds"></li>
                                     <?php foreach ($players as $index => $player): ?>
-                                        <li>
+                                        <li class="moves">
                                             <svg viewBox="<?= explode('|', $playerIcons[$index])[0] ?>">
                                                 <?= explode('|', $playerIcons[$index])[1] ?>
                                                 <use href="#i-p<?= $index ?>"/>
@@ -626,6 +665,7 @@ $playerIcons = [
                                 if ($game['status'] == 'active' || $game['status'] == 'finished'):
                                 ?>
                                     <ul>
+                                        <li class="rounds">R.i</li>
                                         <?php foreach ($players as $index => $player): 
                                             $initialMove = $initialMoves[$index] ?? null;
                                             if($player['player_type'] != 'mr_x' || $isUserMrX){
@@ -634,7 +674,7 @@ $playerIcons = [
                                                 $iniatialPosition = '--';
                                             }
                                         ?>
-                                            <li class="m_.">
+                                            <li class="moves m_.">
                                                 .<?= $iniatialPosition ?>
                                             </li>
                                         <?php endforeach; ?>
@@ -657,6 +697,7 @@ $playerIcons = [
                                     foreach (array_reverse($movesByRound, true) as $round => $roundMoves):
                                 ?>
                                     <ul>
+                                        <li class="rounds">R<?= $round ?></li>
                                         <?php 
                                         // Find moves for each player in this round
                                         $playerMoves = [];
@@ -681,14 +722,14 @@ $playerIcons = [
                                                 }
                                                 $transportType = $move['is_hidden']? 'X':$move['transport_type'];
 
-                                                $moveText = $showMove ? $transportType . '-' . $move['to_position'] :$transportType . '.--';
+                                                $moveText = $showMove ? $transportType . '.' . $move['to_position'] :$transportType . '.--';
                                                 
                                                 ?>
-                                                <li class="m_<?= $transportType ?>">
+                                                <li class="moves m_<?= $transportType ?>">
                                                     <?= $moveText ?>
                                                 </li>
                                             <?php else: ?>
-                                                <li class="no-move">-</li>
+                                                <li class="moves no-move">-</li>
                                             <?php endif; ?>
                                         <?php endforeach; ?>
                                     </ul>
@@ -810,6 +851,19 @@ $playerIcons = [
                     playElement.classList.toggle('minimized');
                     minimizeBtn.textContent = playElement.classList.contains('minimized') ? '+' : '−';
                     minimizeBtn.title = playElement.classList.contains('minimized') ? 'Maximize' : 'Minimize';
+                });
+            }
+
+            // Moves minimize functionality
+            const movesMinimizeBtn = document.getElementById('moves-minimize-btn');
+            const movesList = document.getElementById('movelist');
+            
+            if (movesMinimizeBtn && movesList) {
+                movesMinimizeBtn.addEventListener('click', function(e) {
+                    e.stopPropagation(); // Prevent triggering the header click
+                    movesList.classList.toggle('minimized');
+                    movesMinimizeBtn.textContent = movesList.classList.contains('minimized') ? '+' : '−';
+                    movesMinimizeBtn.title = movesList.classList.contains('minimized') ? 'Maximize' : 'Minimize';
                 });
             }
 
