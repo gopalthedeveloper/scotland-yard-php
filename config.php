@@ -14,7 +14,9 @@ define('GAME_CONFIG', [
         'detective' => [
             'taxi' => 10,
             'bus' => 8,
-            'underground' => 4
+            'underground' => 4,
+            'hidden' => 0,
+            'double' => 0
         ],
         'mr_x' => [
             'hidden' => 5,

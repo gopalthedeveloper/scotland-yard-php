@@ -3,6 +3,7 @@ require_once 'config.php';
 
 class Database {
     private $pdo;
+    private $config;
     
     public function __construct() {
         try {
@@ -19,6 +20,7 @@ class Database {
         } catch (PDOException $e) {
             die("Database connection failed: " . $e->getMessage());
         }
+        $this->config = GAME_CONFIG;
     }
     
     // User management
@@ -88,8 +90,9 @@ class Database {
     
     // Player management
     public function addPlayerToGame($gameId, $userId, $playerType, $playerOrder) {
-        $stmt = $this->pdo->prepare("INSERT INTO game_players (game_id, user_id, player_type, player_order) VALUES (?, ?, ?, ?)");
-        return $stmt->execute([$gameId, $userId, $playerType, $playerOrder]);
+        $stmt = $this->pdo->prepare("INSERT INTO game_players (game_id, user_id, player_type, player_order, taxi_tickets, bus_tickets, underground_tickets, hidden_tickets, double_tickets) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        return $stmt->execute([$gameId, $userId, $playerType, $playerOrder, $this->config['tickets'][$playerType]['taxi'], $this->config['tickets'][$playerType]['bus'], $this->config['tickets'][$playerType]['underground'], $this->config['tickets'][$playerType]['hidden'], $this->config['tickets'][$playerType]['double']]);
     }
     
     public function getGamePlayers($gameId) {
