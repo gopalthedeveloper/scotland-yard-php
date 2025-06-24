@@ -61,8 +61,8 @@ if ($game['status'] == 'waiting' && count($players) >= 2 && isset($_POST['start_
 if ($game['status'] == 'active' && $userInGame && isset($_POST['make_move'])) {
     $toPosition = $_POST['to_position'] ?? null;
     $transportType = $_POST['transport_type'] ?? null;
-    $isHidden = isset($_POST['is_hidden']);
-    $isDoubleMove = isset($_POST['is_double_move']);
+    $isHidden = isset($_POST['is_hidden'])?$_POST['is_hidden']:false;
+    $isDoubleMove = isset($_POST['is_double_move'])?$_POST['is_double_move']:false;
     
     if ($toPosition && $transportType) {
         $result = $gameEngine->makeMove($gameId, $userPlayer['id'], $toPosition, $transportType, $isHidden, $isDoubleMove);
@@ -86,9 +86,10 @@ if ($userInGame && $game['status'] == 'active' && $currentPlayer['id'] == $userP
 }
 
 // Generate QR data for Mr. X
-$qrData = null;
-if ($userInGame && $userPlayer['player_type'] == 'mr_x' && $game['status'] == 'active' && $currentPlayer['id'] == $userPlayer['id']) {
-    $qrData = $gameEngine->generateQRData($gameId, $userPlayer['id']);
+$isUserMrX = false;
+
+if ($userInGame && $game['status'] == 'active' && $userPlayer['player_type'] == 'mr_x') {
+    $isUserMrX = true;
 }
 
 // Get board nodes for positioning
@@ -230,16 +231,15 @@ $playerIcons = [
         #movelist ul {
             list-style-type: none;
             padding: 0;
-            margin: 0 0 10px 0;
+            margin: 0 0 5px 0;
         }
 
         #movelist li {
             display: inline-block;
             font-weight: normal;
-            width: 5ch;
+            width: 6ch;
             font-family: monospace;
             margin-right: 1em;
-            padding: 2px;
             border-radius: 3px;
             text-align: center;
         }
@@ -258,6 +258,15 @@ $playerIcons = [
 
         .m_X {
             background-color: #aaa;
+        }
+
+        .m_\. {
+            background-color: #e9ecef;
+            color: #6c757d;
+        }
+
+        .no-move {
+            color: #ccc;
         }
 
         #movetbl.small {
@@ -570,7 +579,13 @@ $playerIcons = [
                                     <use href="#i-p<?= $index ?>"/>
                                 </svg>
                                 <?= htmlspecialchars($player['username']) ?>
-                                <b><?= $player['current_position'] ?: '0' ?></b>
+                                <b>
+                                    <?php if($player['player_type'] != 'mr_x' || $isUserMrX): ?>
+                                        <?= $player['current_position'] ?: '0' ?>
+                                    <?php else: ?>
+                                        --
+                                    <?php endif; ?>
+                                </b>
                             </p>
                         <?php endforeach; ?>
                     </div>
@@ -580,8 +595,53 @@ $playerIcons = [
                         <div id="movelist">
                             <h4>Moves</h4>
                             <div id="movetbl">
+                                <ul>
+
+                                    <?php foreach ($players as $index => $player): ?>
+                                        <li>
+                                            <svg viewBox="<?= explode('|', $playerIcons[$index])[0] ?>">
+                                                <?= explode('|', $playerIcons[$index])[1] ?>
+                                                <use href="#i-p<?= $index ?>"/>
+                                            </svg>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
                                 <?php
                                 $moves = $db->getGameMoves($gameId);
+                                
+                                // Get initial positions from database (round 1 moves)
+                                $initialMoves = [];
+                                if (!empty($moves)) {
+                                    foreach ($moves as $move) {
+                                        if ($move['round_number'] == 1) {
+                                            $playerIndex = array_search($move['player_id'], array_column($players, 'id'));
+                                            if ($playerIndex !== false) {
+                                                $initialMoves[$playerIndex] = $move;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Always show initial positions (round 1)
+                                if ($game['status'] == 'active' || $game['status'] == 'finished'):
+                                ?>
+                                    <ul>
+                                        <?php foreach ($players as $index => $player): 
+                                            $initialMove = $initialMoves[$index] ?? null;
+                                            if($player['player_type'] != 'mr_x' || $isUserMrX){
+                                                $iniatialPosition = $initialMove ? $initialMove['from_position'] : $player['current_position'];
+                                            } else {    
+                                                $iniatialPosition = '--';
+                                            }
+                                        ?>
+                                            <li class="m_.">
+                                                .<?= $iniatialPosition ?>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                <?php endif; ?>
+                                
+                                <?php
                                 if (!empty($moves)):
                                     // Group moves by round
                                     $movesByRound = [];
@@ -597,26 +657,45 @@ $playerIcons = [
                                     foreach (array_reverse($movesByRound, true) as $round => $roundMoves):
                                 ?>
                                     <ul>
-                                        <?php foreach ($roundMoves as $move): ?>
-                                            <?php
-                                            $transportType = $move['transport_type'];
-                                            $moveText = $move['from_position'] . $move['to_position'];
-                                            if ($move['is_hidden']) {
-                                                $transportType = 'X';
-                                                $moveText = '--' . $move['to_position'];
+                                        <?php 
+                                        // Find moves for each player in this round
+                                        $playerMoves = [];
+                                        foreach ($roundMoves as $move) {
+                                            $playerIndex = array_search($move['player_id'], array_column($players, 'id'));
+                                            if ($playerIndex !== false) {
+                                                $playerMoves[$playerIndex] = $move;
                                             }
-                                            ?>
-                                            <li class="m_<?= $transportType ?>">
-                                                <?= $moveText ?>
-                                            </li>
+                                        }
+                                        
+                                        foreach ($players as $index => $player): 
+                                            $move = $playerMoves[$index] ?? null;
+                                        ?>
+                                            <?php if ($move): ?>
+                                                <?php
+                                                $transportType = $move['transport_type'];
+                                                $showMove = true;
+                                                
+                                                // Hide Mr. X moves unless it's a reveal round or game is finished
+                                                if ($player['player_type'] == 'mr_x' && $game['status'] == 'active' && !$isUserMrX) {
+                                                    $showMove = in_array($round, [3, 8, 13, 18, 23, 28, 33, 38]) || $game['status'] == 'finished';
+                                                }
+                                                $transportType = $move['is_hidden']? 'X':$move['transport_type'];
+
+                                                $moveText = $showMove ? $transportType . '-' . $move['to_position'] :$transportType . '.--';
+                                                
+                                                ?>
+                                                <li class="m_<?= $transportType ?>">
+                                                    <?= $moveText ?>
+                                                </li>
+                                            <?php else: ?>
+                                                <li class="no-move">-</li>
+                                            <?php endif; ?>
                                         <?php endforeach; ?>
                                     </ul>
                                 <?php 
                                     endforeach;
-                                else:
+                                endif;
                                 ?>
-                                    <p class="text-muted">No moves yet</p>
-                                <?php endif; ?>
                             </div>
                         </div>
 
@@ -631,14 +710,6 @@ $playerIcons = [
                                         <p>T: <?= $userPlayer['taxi_tickets'] ?> B: <?= $userPlayer['bus_tickets'] ?> U: <?= $userPlayer['underground_tickets'] ?></p>
                                     <?php endif; ?>
                                 </div>
-
-                                <?php if ($userPlayer['player_type'] == 'mr_x' && $qrData): ?>
-                                    <div id="qrmove">
-                                        <h6>Scan QR Code for Your Moves</h6>
-                                        <div id="qrcode"></div>
-                                        <p class="text-muted mt-2">Use a QR scanner to see your possible moves</p>
-                                    </div>
-                                <?php endif; ?>
 
                                 <form method="POST">
                                     <input type="hidden" name="is_hidden" id="is_hidden" value="">
@@ -854,11 +925,6 @@ $playerIcons = [
             }
         });
 
-        // Generate QR code for Mr. X
-        <?php if ($qrData): ?>
-        $('#qrcode').html(QRCode({'msg':  `<?= addslashes($qrData) ?>`, 'dim': '100%'}));
-       
-        <?php endif; ?>
 
         // Auto-refresh every 5 seconds
         // setTimeout(function() {

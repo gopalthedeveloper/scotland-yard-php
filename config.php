@@ -12,7 +12,7 @@ define('GAME_CONFIG', [
     'reveal_rounds' => [3, 8, 13, 18, 23, 28, 33, 38],
     'tickets' => [
         'detective' => [
-            'taxi' => 11,
+            'taxi' => 10,
             'bus' => 8,
             'underground' => 4
         ],
