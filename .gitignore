@@ -1,0 +1,11 @@
+*~
+./access_log.log
+./error_log.log
+./php.log
+./php.log.*
+./php.log.*.*
+./php.log.*.*.*
+./php.log.*.*.*.*
+./php.log.*.*.*.*.*
+./php.log.*.*.*.*.*.*
+./php.log.*.*.*.*.*.*.*
