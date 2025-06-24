@@ -88,7 +88,7 @@ if ($userInGame && $game['status'] == 'active' && $currentPlayer['id'] == $userP
 // Generate QR data for Mr. X
 $isUserMrX = false;
 
-if ($userInGame && $game['status'] == 'active' && $userPlayer['player_type'] == 'mr_x') {
+if ($userInGame && ($game['status'] !== 'active' || $userPlayer['player_type'] == 'mr_x')) {
     $isUserMrX = true;
 }
 

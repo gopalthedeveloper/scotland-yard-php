@@ -124,10 +124,14 @@ class GameEngine {
             }
         }
         
-        // Check if destination is occupied
+        // Check if destination is occupied by another detective (but allow moving to Mr. X's position)
         $gamePlayers = $this->db->getGamePlayers($player['game_id']);
         foreach ($gamePlayers as $p) {
             if ($p['current_position'] == $toPosition && $p['id'] != $playerId) {
+                // Allow detectives to move to Mr. X's position
+                if ($player['player_type'] !==  $p['player_type']) {
+                    continue; // Allow this move
+                }
                 return ['valid' => false, 'message' => 'Destination is occupied'];
             }
         }
@@ -249,10 +253,14 @@ class GameEngine {
         $validMoves = [];
         
         foreach ($possibleMoves as $move) {
-            // Check if destination is occupied
+            // Check if destination is occupied by another player of the same type
             $occupied = false;
             foreach ($players as $p) {
                 if ($p['current_position'] == $move['to_node'] && $p['id'] != $playerId) {
+                    // Allow detectives to move to Mr. X's position
+                    if ($player['player_type'] !==  $p['player_type']) {
+                        continue; // Allow this move
+                    }
                     $occupied = true;
                     break;
                 }
