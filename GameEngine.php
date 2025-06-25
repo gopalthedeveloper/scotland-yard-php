@@ -269,8 +269,18 @@ class GameEngine {
             return ['gameOver' => true, 'winner' => 'detectives'];
         }
         
-        // Check if max rounds reached
-        if ($game['current_round'] >= $this->config['max_rounds']) {
+        // Check if we're in the final round and all detectives have moved
+        if ($game['current_round'] == $this->config['max_rounds']) {
+            $currentPlayer = $this->db->getCurrentPlayer($gameId);
+            
+            // If it's Mr. X's turn after all detectives have moved in the final round, end the game
+            if ($currentPlayer['player_type'] == 'mr_x') {
+                return ['gameOver' => true, 'winner' => 'mr_x'];
+            }
+        }
+        
+        // Check if max rounds exceeded (shouldn't happen with the above logic, but as a safety)
+        if ($game['current_round'] > $this->config['max_rounds']) {
             return ['gameOver' => true, 'winner' => 'mr_x'];
         }
         
