@@ -42,7 +42,7 @@ foreach ($players as $player) {
 // Handle join game
 if (!$userInGame && $game['status'] == 'waiting' && count($players) < $game['max_players']) {
     if (isset($_POST['join_game'])) {
-        $playerType = count($players) == 0 ? 'mr_x' : 'detective';
+        $playerType = 'detective'; // Default to detective, can be changed to Mr. X later
         $playerOrder = count($players);
         $db->addPlayerToGame($gameId, $_SESSION['user_id'], $playerType, $playerOrder);
         header("Location: game.php?id=$gameId");
@@ -50,8 +50,62 @@ if (!$userInGame && $game['status'] == 'waiting' && count($players) < $game['max
     }
 }
 
+// Handle Mr. X selection
+if ($userInGame && $game['status'] == 'waiting' && isset($_POST['select_mr_x'])) {
+    $selectedPlayerId = (int)($_POST['mr_x_player'] ?? 0);
+    
+    // Verify the selected player is in this game
+    $validPlayer = false;
+    foreach ($players as $player) {
+        if ($player['id'] == $selectedPlayerId) {
+            $validPlayer = true;
+            break;
+        }
+    }
+    
+    if ($validPlayer) {
+        // Change all players to detectives first
+        foreach ($players as $player) {
+            $db->updatePlayerType($player['id'], 'detective');
+        }
+        // Set the selected player as Mr. X
+        $db->updatePlayerType($selectedPlayerId, 'mr_x');
+        
+        // Reorder players: Mr. X gets order 0, detectives get 1, 2, 3, etc.
+        $db->updatePlayerOrder($selectedPlayerId, 0);
+        $detectiveOrder = 1;
+        foreach ($players as $player) {
+            if ($player['id'] != $selectedPlayerId) {
+                $db->updatePlayerOrder($player['id'], $detectiveOrder);
+                $detectiveOrder++;
+            }
+        }
+        
+        // Store success message
+        $_SESSION['game_success'] = 'Mr. X selected successfully! Player order has been updated.';
+        
+        header("Location: game.php?id=$gameId");
+        exit();
+    }
+}
+
 // Handle game initialization
 if ($game['status'] == 'waiting' && count($players) >= 2 && isset($_POST['start_game'])) {
+    // Check if Mr. X is assigned
+    $mrXAssigned = false;
+    foreach ($players as $player) {
+        if ($player['player_type'] == 'mr_x') {
+            $mrXAssigned = true;
+            break;
+        }
+    }
+    
+    if (!$mrXAssigned) {
+        $_SESSION['game_error'] = 'Please select Mr. X before starting the game.';
+        header("Location: game.php?id=$gameId");
+        exit();
+    }
+    
     $gameEngine->initializeGame($gameId);
     header("Location: game.php?id=$gameId");
     exit();
@@ -121,6 +175,19 @@ $playerIcons = [
 // Get error message from session
 $errorMessage = $_SESSION['game_error'] ?? '';
 unset($_SESSION['game_error']); // Clear the error after displaying
+
+// Get success message from session
+$successMessage = $_SESSION['game_success'] ?? '';
+unset($_SESSION['game_success']); // Clear the success after displaying
+
+// Debug: Show current player order
+$debugInfo = '';
+if ($game['status'] == 'waiting') {
+    $debugInfo = "Current player order: ";
+    foreach ($players as $player) {
+        $debugInfo .= $player['username'] . " (order: " . $player['player_order'] . ", type: " . $player['player_type'] . ") ";
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -423,7 +490,7 @@ unset($_SESSION['game_error']); // Clear the error after displaying
         }
 
         .board-main {
-            max-width: 98vw;
+            width: 98vw;
             margin: 0 auto;
             padding: 20px;
         }
@@ -519,23 +586,50 @@ unset($_SESSION['game_error']); // Clear the error after displaying
         <div class="board-container">
             <div class="board-main">
                 <h2><?= htmlspecialchars($game['game_name']) ?></h2>
-                <p class="text-muted">
-                    Status: <span class="badge bg-<?= $game['status'] == 'waiting' ? 'warning' : ($game['status'] == 'active' ? 'success' : 'danger') ?>">
-                        <?= ucfirst($game['status']) ?>
+                <p class="text-muted d-flex justify-content-between align-items-center">
+                    <span>
+                        Status: <span class="badge bg-<?= $game['status'] == 'waiting' ? 'warning' : ($game['status'] == 'active' ? 'success' : 'danger') ?>">
+                            <?= ucfirst($game['status']) ?>
+                        </span>
+                        | Round: <?= $game['current_round'] ?> | Players: <?= count($players) ?>/<?= $game['max_players'] ?>
+                        <!-- Join Game -->
+                        <?php if (!$userInGame && count($players) < $game['max_players']):?> 
+                        <button type="submit" name="join_game" class="btn btn-primary ms-3" onclick="document.getElementById('join-form').submit();">Join Game</button>
+                        <form id="join-form" method="POST" style="display: none;">
+                            <input type="hidden" name="join_game" value="1">
+                        </form>
+                        <?php endif; ?>
                     </span>
-                    | Round: <?= $game['current_round'] ?> | Players: <?= count($players) ?>/<?= $game['max_players'] ?>
-                    <!-- Map Zoom Controls -->
-                    <div class="map-controls">
+                    <span>
+                        <?php if ($game['status'] == 'active' || $game['status'] == 'finished'): ?>
+                        <!-- Map Zoom Controls -->
+                        <div class="map-controls d-inline-block">
                             <button id="zoom-out" title="Zoom Out (Ctrl + -)">−</button>
                             <span class="zoom-level" id="zoom-level">60%</span>
                             <button id="zoom-in" title="Zoom In (Ctrl + +)">+</button>
                             <button id="zoom-reset" title="Reset Zoom (Ctrl + 0)">Reset</button>
                         </div>
+                        <?php endif; ?>
+                    </span>
                 </p>
 
                 <?php if ($errorMessage): ?>
                     <div class="alert alert-danger alert-dismissible fade show" role="alert">
                         <?= htmlspecialchars($errorMessage) ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($successMessage): ?>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <?= htmlspecialchars($successMessage) ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($debugInfo): ?>
+                    <div class="alert alert-info alert-dismissible fade show" role="alert">
+                        <strong>Debug Info:</strong> <?= htmlspecialchars($debugInfo) ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 <?php endif; ?>
@@ -548,31 +642,103 @@ unset($_SESSION['game_error']); // Clear the error after displaying
                     </div>
                 <?php endif; ?>
 
-                <!-- Join Game -->
-                <?php if (!$userInGame && $game['status'] == 'waiting' && count($players) < $game['max_players']): ?>
-                    <div class="card">
-                        <div class="card-body">
-                            <h5>Join this game</h5>
-                            <p>This game needs more players to start.</p>
-                            <form method="POST">
-                                <button type="submit" name="join_game" class="btn btn-primary">Join Game</button>
-                            </form>
-                        </div>
-                    </div>
-                <?php endif; ?>
+                <div class="row">
+                <div class="col-sm-6 col-xs-12">
+                        <!-- Mr. X Selection -->
+                        <?php if ($userInGame && $game['status'] == 'waiting' && count($players) >= 2): ?>
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h5>Choose Mr. X</h5>
+                                    <p>Select which player will be Mr. X:</p>
+                                    <form method="POST">
+                                        <div class="row">
+                                            <div class="col-md-8">
+                                                <select class="form-select" name="mr_x_player" required>
+                                                    <option value="">Select a player...</option>
+                                                    <?php foreach ($players as $player): ?>
+                                                        <option value="<?= $player['id'] ?>" <?= ($player['player_type'] == 'mr_x') ? 'selected' : '' ?>>
+                                                            <?= htmlspecialchars($player['username']) ?> 
+                                                            (<?= $player['player_type'] == 'mr_x' ? 'Currently Mr. X' : 'Detective' ?>)
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <button type="submit" name="select_mr_x" class="btn btn-warning">Set Mr. X</button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        <?php endif; ?>
 
-                <!-- Start Game -->
-                <?php if ($userInGame && $game['status'] == 'waiting' && count($players) >= 2): ?>
-                    <div class="card">
-                        <div class="card-body">
-                            <h5>Ready to start?</h5>
-                            <p>All players have joined. Click to start the game.</p>
-                            <form method="POST">
-                                <button type="submit" name="start_game" class="btn btn-success">Start Game</button>
-                            </form>
-                        </div>
+                        <!-- Start Game -->
+                        <?php if ($userInGame && $game['status'] == 'waiting' && count($players) >= 2): ?>
+                            <?php 
+                            // Check if Mr. X is assigned
+                            $mrXAssigned = false;
+                            foreach ($players as $player) {
+                                if ($player['player_type'] == 'mr_x') {
+                                    $mrXAssigned = true;
+                                    break;
+                                }
+                            }
+                            ?>
+                            
+                            <?php if ($mrXAssigned): ?>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5>Ready to start?</h5>
+                                        <p>Mr. X has been selected. Click to start the game.</p>
+                                        <form method="POST">
+                                            <button type="submit" name="start_game" class="btn btn-success">Start Game</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            <?php else: ?>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5>Game Setup Required</h5>
+                                        <p class="text-warning">Please select Mr. X before starting the game.</p>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                        <?php endif; ?>
                     </div>
-                <?php endif; ?>
+                    <div class="col-sm-6 col-xs-12">
+                        <!-- Player List for Joined Players -->
+                        <?php if ( $game['status'] == 'waiting'): ?>
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h5>Players in this game</h5>
+                                    <?php if (empty($players)): ?>
+                                        <p class="text-muted">No players have joined yet.</p>
+                                    <?php else: ?>
+                                        <ul class="list-group list-group-flush">
+                                            <?php foreach ($players as $player): ?>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    <span>
+                                                        <strong><?= htmlspecialchars($player['username']) ?></strong>
+                                                        <?php if ($player['player_type'] == 'mr_x'): ?>
+                                                            <span class="badge bg-danger ms-2">Mr. X</span>
+                                                        <?php else: ?>
+                                                            <span class="badge bg-primary ms-2">Detective</span>
+                                                        <?php endif; ?>
+                                                        <?php if ($player['user_id'] == $_SESSION['user_id']): ?>
+                                                            <span class="badge bg-success ms-2">You</span>
+                                                        <?php endif; ?>
+                                                    </span>
+                                                    <small class="text-muted">Joined <?= date('M j, g:i A', strtotime($player['joined_at'])) ?></small>
+                                                </li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    <?php endif; ?>
+                                    <p class="mt-2"><small class="text-muted"><?= count($players) ?>/<?= $game['max_players'] ?> players</small></p>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
 
                 <!-- Game Board -->
                 <?php if ($game['status'] == 'active' || $game['status'] == 'finished'): ?>
@@ -631,6 +797,7 @@ unset($_SESSION['game_error']); // Clear the error after displaying
                 <?php endif; ?>
             </div>
 
+            <?php if ($game['status'] == 'active' || $game['status'] == 'finished'): ?>
             <div class="board-sidebar">
                 <div id="play">
                     <h1>SSY - <?= htmlspecialchars($game['game_name']) ?>
@@ -845,6 +1012,7 @@ unset($_SESSION['game_error']); // Clear the error after displaying
                     <?php endif; ?>
                 </div>
             </div>
+            <?php endif; ?>
         </div>
     </div>
     <script src="https://code.jquery.com/jquery-3.7.1.slim.min.js"></script>

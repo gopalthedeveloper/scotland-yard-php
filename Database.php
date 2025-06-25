@@ -142,6 +142,16 @@ class Database {
         $stmt->execute([$position, $playerId]);
     }
     
+    public function updatePlayerType($playerId, $playerType) {
+        $stmt = $this->pdo->prepare("UPDATE game_players SET player_type = ? WHERE id = ?");
+        $stmt->execute([$playerType, $playerId]);
+    }
+    
+    public function updatePlayerOrder($playerId, $playerOrder) {
+        $stmt = $this->pdo->prepare("UPDATE game_players SET player_order = ? WHERE id = ?");
+        $stmt->execute([$playerOrder, $playerId]);
+    }
+    
     public function updatePlayerTickets($playerId, $ticketType, $count) {
         // Map transport types to database column names
         $columnMapping = [

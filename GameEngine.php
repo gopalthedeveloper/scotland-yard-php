@@ -25,8 +25,21 @@ class GameEngine {
         // Set initial positions
         $this->setInitialPositions($gameId, $players);
         
-        // Set first player (Mr. X)
-        $this->db->setCurrentPlayer($gameId, $players[0]['id']);
+        // Find Mr. X (player_order = 0) and set as first player
+        $mrX = null;
+        foreach ($players as $player) {
+            if ($player['player_order'] == 0) {
+                $mrX = $player;
+                break;
+            }
+        }
+        
+        if (!$mrX) {
+            return false; // Mr. X not found
+        }
+        
+        // Set Mr. X as the first player
+        $this->db->setCurrentPlayer($gameId, $mrX['id']);
         
         // Update game status
         $this->db->updateGameStatus($gameId, 'active');
