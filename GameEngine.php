@@ -63,6 +63,14 @@ class GameEngine {
             return ['success' => false, 'message' => 'Game is not active'];
         }
         
+        // Check if a double move has already been used this round
+        if ($isDoubleMove) {
+            $doubleMoveUsed = $this->db->getGameSetting($gameId, 'double_move_used_round_' . $game['current_round']);
+            if ($doubleMoveUsed == '1') {
+                return ['success' => false, 'message' => 'Double move already used this round'];
+            }
+        }
+        
         // Validate move
         $validation = $this->validateMove($playerId, $currentPlayer['current_position'], $toPosition, $transportType, $isHidden, $isDoubleMove);
         if (!$validation['valid']) {
@@ -79,8 +87,24 @@ class GameEngine {
             return ['success' => true, 'gameOver' => true, 'winner' => $winCheck['winner']];
         }
         
-        // Move to next player
-        $this->nextTurn($gameId);
+        // For double moves, don't advance to next player yet
+        if ($isDoubleMove) {
+            // Mark that a double move has been used this round
+            $this->db->setGameSetting($gameId, 'double_move_used_round_' . $game['current_round'], '1');
+            // Set a flag to indicate this is the first move of a double move
+            $this->db->setGameSetting($gameId, 'double_move_in_progress', '1');
+            return ['success' => true, 'gameOver' => false, 'doubleMove' => true, 'message' => 'Make your second move'];
+        } else {
+            // Check if this is the second move of a double move
+            $doubleMoveInProgress = $this->db->getGameSetting($gameId, 'double_move_in_progress');
+            if ($doubleMoveInProgress == '1') {
+                // Clear the double move flag
+                $this->db->setGameSetting($gameId, 'double_move_in_progress', '0');
+            }
+            
+            // Move to next player
+            $this->nextTurn($gameId);
+        }
         
         return ['success' => true, 'gameOver' => false];
     }
@@ -91,6 +115,19 @@ class GameEngine {
         
         if (!$player) {
             return ['valid' => false, 'message' => 'Player not found'];
+        }
+        
+        // Validate double move
+        if ($isDoubleMove) {
+            // Only Mr. X can make double moves
+            if ($player['player_type'] !== 'mr_x') {
+                return ['valid' => false, 'message' => 'Only Mr. X can make double moves'];
+            }
+            
+            // Check if player has double tickets
+            if ($player['double_tickets'] <= 0) {
+                return ['valid' => false, 'message' => 'No double tickets available'];
+            }
         }
         
         // Check if destination is valid
@@ -110,17 +147,20 @@ class GameEngine {
             return ['valid' => false, 'message' => 'Invalid move'];
         }
         
-        // Check if player has tickets
-        if ($isHidden && $player['player_type'] == 'mr_x') {
-            // Mr. X can use hidden tickets for any transport type
-            if ($player['hidden_tickets'] <= 0) {
-                return ['valid' => false, 'message' => 'No hidden tickets available'];
-            }
-        } else {
-            // Check regular tickets for the transport type
-            $ticketColumn = $this->getTicketColumn($actualTransportType);
-            if ($ticketColumn && $player[$ticketColumn . '_tickets'] <= 0) {
-                return ['valid' => false, 'message' => 'No tickets available for this transport type'];
+        // For double moves, we don't need to check regular tickets since we'll use a double ticket
+        if (!$isDoubleMove) {
+            // Check if player has tickets
+            if ($isHidden && $player['player_type'] == 'mr_x') {
+                // Mr. X can use hidden tickets for any transport type
+                if ($player['hidden_tickets'] <= 0) {
+                    return ['valid' => false, 'message' => 'No hidden tickets available'];
+                }
+            } else {
+                // Check regular tickets for the transport type
+                $ticketColumn = $this->getTicketColumn($actualTransportType);
+                if ($ticketColumn && $player[$ticketColumn . '_tickets'] <= 0) {
+                    return ['valid' => false, 'message' => 'No tickets available for this transport type'];
+                }
             }
         }
         
@@ -149,10 +189,13 @@ class GameEngine {
         $this->db->updatePlayerPosition($playerId, $toPosition);
         
         // Update tickets
-        if ($transportType !== '.') {
-            $player = $this->db->getPlayerById($playerId);
-            
-            if ($player) {
+        $player = $this->db->getPlayerById($playerId);
+        
+        if ($player) {
+            if ($isDoubleMove) {
+                // Consume double ticket
+                $this->db->updatePlayerTickets($playerId, '2', $player['double_tickets'] - 1);
+            } else if ($transportType !== '.') {
                 if ($isHidden && $player['player_type'] == 'mr_x') {
                     // Use hidden ticket instead of transport-specific ticket
                     $this->db->updatePlayerTickets($playerId, 'X', $player['hidden_tickets'] - 1);

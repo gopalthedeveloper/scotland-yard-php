@@ -704,14 +704,27 @@ $playerIcons = [
                                         foreach ($roundMoves as $move) {
                                             $playerIndex = array_search($move['player_id'], array_column($players, 'id'));
                                             if ($playerIndex !== false) {
-                                                $playerMoves[$playerIndex] = $move;
+                                                if (!isset($playerMoves[$playerIndex])) {
+                                                    $playerMoves[$playerIndex] = [];
+                                                }
+                                                $playerMoves[$playerIndex][] = $move;
                                             }
                                         }
                                         
                                         foreach ($players as $index => $player): 
-                                            $move = $playerMoves[$index] ?? null;
-                                        ?>
-                                            <?php if ($move): ?>
+                                            $pMoves = $playerMoves[$index] ?? [];
+                                            $move = array_shift($pMoves);
+
+                                            if(false){
+                                                doubleMove:
+                                                $move = array_shift($pMoves);
+                                                ?>
+                                                </ul>
+                                                <ul>
+                                                    <li class="rounds">R<?= $round ?></li>
+                                            <?php
+                                            } 
+                                            if ($move): ?>
                                                 <?php
                                                 $transportType = $move['transport_type'];
                                                 $showMove = true;
@@ -728,9 +741,12 @@ $playerIcons = [
                                                 <li class="moves m_<?= $transportType ?>">
                                                     <?= $moveText ?>
                                                 </li>
-                                            <?php else: ?>
-                                                <li class="moves no-move">-</li>
-                                            <?php endif; ?>
+                                            <?php endif; 
+                                            if(count($pMoves) > 0){
+                                                goto doubleMove;
+                                            }
+                                            ?>
+
                                         <?php endforeach; ?>
                                     </ul>
                                 <?php 
@@ -781,7 +797,12 @@ $playerIcons = [
                                     <?php if ($userPlayer['player_type'] == 'mr_x'): ?>
                                         <div class="mt-3">
                                             <button type="button" id="move-x" class="btn btn-secondary">X</button>
-                                            <button type="button" id="move-2" class="btn btn-secondary">2</button>
+                                            <?php 
+                                            // Check if double move has already been used this round
+                                            $doubleMoveUsed = $db->getGameSetting($gameId, 'double_move_used_round_' . $game['current_round']);
+                                            $doubleMoveDisabled = ($doubleMoveUsed == '1' || $userPlayer['double_tickets'] <= 0);
+                                            ?>
+                                            <button type="button" id="move-2" class="btn btn-secondary <?= $doubleMoveDisabled ? 'disabled' : '' ?>" <?= $doubleMoveDisabled ? 'disabled' : '' ?> title="<?= $doubleMoveDisabled ? 'Double move not available' : 'Double move' ?>">2</button>
                                         </div>
                                     <?php endif; ?>
 
@@ -989,6 +1010,7 @@ $playerIcons = [
         document.getElementById('move').addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
             const transportSelect = document.querySelector('select[name="transport_type"]');
+            
             const transportOption = transportSelect.querySelector(`option[data-position="${this.value}"]`);
             
             if (transportOption) {
@@ -1032,17 +1054,24 @@ $playerIcons = [
         const move2Btn = document.getElementById('move-2');
         if (move2Btn) {
             move2Btn.addEventListener('click', function() {
+                // Don't allow clicking if button is disabled
+                if (this.classList.contains('disabled') || this.disabled) {
+                    return;
+                }
+                
                 const isDoubleField = document.getElementById('is_double_move');
                 const isDouble = isDoubleField.value === '1';
-                isDoubleField.value = isDouble ? '' : '1';
                 
-                // Update button appearance
-                if (isDoubleField.value === '1') {
-                    this.classList.add('btn-primary');
-                    this.classList.remove('btn-secondary');
-                } else {
+                if (isDouble) {
+                    // Clear double move
+                    isDoubleField.value = '';
                     this.classList.remove('btn-primary');
                     this.classList.add('btn-secondary');
+                } else {
+                    // Set double move
+                    isDoubleField.value = '1';
+                    this.classList.add('btn-primary');
+                    this.classList.remove('btn-secondary');
                 }
             });
         }
