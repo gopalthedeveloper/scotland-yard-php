@@ -69,7 +69,16 @@ if ($game['status'] == 'active' && $userInGame && isset($_POST['make_move'])) {
         if ($result['success']) {
             header("Location: game.php?id=$gameId");
             exit();
+        } else {
+            // Store error message in session
+            $_SESSION['game_error'] = $result['message'];
+            header("Location: game.php?id=$gameId");
+            exit();
         }
+    } else {
+        $_SESSION['game_error'] = 'Please select both destination and transport type.';
+        header("Location: game.php?id=$gameId");
+        exit();
     }
 }
 
@@ -108,6 +117,10 @@ $playerIcons = [
     '0 0 512 512|<circle style="fill:black;stroke:white;stroke-width:5%" cx="256" cy="256" r="256"/><path style="fill:orange" d="M256.9 225a97.3 97.3 0 1 0 0-194.6 97.3 97.3 0 0 0 0 194.6ZM222 261.4A135.5 135.5 0 0 0 86.6 397a22.6 22.6 0 0 0 22.6 22.6h295.3a22.6 22.6 0 0 0 22.6-22.6c0-74.8-60.6-135.5-135.5-135.5h-69.5Z"/>',
     '0 0 512 512|<circle style="fill:black;stroke:white;stroke-width:5%" cx="256" cy="256" r="256"/><path style="fill:yellow" d="M256.9 225a97.3 97.3 0 1 0 0-194.6 97.3 97.3 0 0 0 0 194.6ZM222 261.4A135.5 135.5 0 0 0 86.6 397a22.6 22.6 0 0 0 22.6 22.6h295.3a22.6 22.6 0 0 0 22.6-22.6c0-74.8-60.6-135.5-135.5-135.5h-69.5Z"/>'
 ];
+
+// Get error message from session
+$errorMessage = $_SESSION['game_error'] ?? '';
+unset($_SESSION['game_error']); // Clear the error after displaying
 ?>
 
 <!DOCTYPE html>
@@ -259,6 +272,16 @@ $playerIcons = [
 
         .moves-minimize-btn:hover {
             background: #5a6268;
+        }
+
+        .btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .btn.disabled:hover {
+            background-color: inherit;
         }
 
         #movelist ul {
@@ -509,6 +532,13 @@ $playerIcons = [
                             <button id="zoom-reset" title="Reset Zoom (Ctrl + 0)">Reset</button>
                         </div>
                 </p>
+
+                <?php if ($errorMessage): ?>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <?= htmlspecialchars($errorMessage) ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php endif; ?>
 
                 <?php if ($game['status'] == 'finished'): ?>
                     <div class="alert alert-info">
