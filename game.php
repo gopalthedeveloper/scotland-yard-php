@@ -55,25 +55,36 @@ if (!$userInGame) {
 if (!$userInGame && $game['status'] == 'waiting' && count($humanPlayers) < $game['max_players']) {
     if (isset($_POST['join_game'])) {
         // Try to find an unassigned AI detective
-        $aiDetectives = $db->getAIDetectives($gameId);
+        $aiDetectives = $db->getDetectiveAssignments($gameId);
         $assigned = false;
+        $firstAiDetective = null;
+        $pureAiDetective = null;
         foreach ($aiDetectives as $ai) {
             // Check if this AI detective is not controlled by any user (no owner mapping)
             $hasOwner = false;
             foreach ($players as $p) {
-                if ($p['id'] == $ai['id'] && $p['mapping_type'] == 'owner') {
-                    $hasOwner = true;
-                    break;
+                if ($p['id'] == $ai['id'] && $p['mapping_type'] != 'owner') {
+                    if(!$firstAiDetective){
+                        $firstAiDetective = $ai;
+                    }
+                    if($p['controlled_by_user_id'] == null){
+                        $pureAiDetective = $ai;
+                        break;
+                    }
                 }
             }
-            if (!$hasOwner) {
-                // Assign this AI detective to the user
-                $db->assignAIDetectiveToUser($ai['id'], $_SESSION['user_id']);
-                $assigned = true;
-                break;
-            }
+            if($pureAiDetective)break;
+            
         }
-        if (!$assigned) {
+       
+        $detective = $pureAiDetective??$firstAiDetective;
+        if ($detective) {
+            if($detective['controlled_by_user_id'] != null){
+                $db->deleteUserPlayerMapping($detective['id'], 'controller','player');
+            }
+            // Assign this AI detective to the user
+            $db->assignAIDetectiveToUser($detective['id'], $_SESSION['user_id']);
+        } else {
             // No available AI detective, create a new detective for the user
             $playerType = 'detective';
             $playerOrder = count($players);
@@ -236,6 +247,28 @@ if ($userInGame && $game['status'] == 'waiting' && isset($_POST['create_ai_detec
         header("Location: game.php?id=$gameId");
         exit();
     }
+}
+
+// Handle leave game
+if ($userInGame && $game['status'] == 'waiting' && isset($_POST['leave_game'])) {
+    // Remove the user's detective (owned player)
+    foreach ($players as $player) {
+        if ($player['user_id'] == $_SESSION['user_id'] && $player['mapping_type'] == 'owner') {
+            $db->convertHumanToAIDetective($player['id']);
+            $db->removeUserFromGame($_SESSION['user_id']);
+            break;
+        }
+    }
+    header("Location: game.php?id=$gameId");
+    exit();
+}
+
+// Handle remove AI detective
+if ($userInGame && $game['status'] == 'waiting' && isset($_POST['remove_ai_detective'])) {
+    $aiId = (int)$_POST['remove_ai_detective'];
+    $db->removeAIDetective($aiId);
+    header("Location: game.php?id=$gameId");
+    exit();
 }
 
 // Refresh data
@@ -772,8 +805,15 @@ if ($game['status'] == 'waiting') {
                     </div>
                 <?php endif; ?>
 
+                <?php if ($userInGame && $game['status'] == 'waiting'): ?>
+                    <form id="leave-game-form" method="POST" style="display:inline-block; margin-bottom:10px;">
+                        <button type="button" class="btn btn-danger" id="leave-game-btn">Leave Game</button>
+                        <input type="hidden" name="leave_game" value="1">
+                    </form>
+                <?php endif; ?>
+
                 <div class="row">
-                <div class="col-sm-6 col-xs-12">
+                    <div class="col-sm-6 col-xs-12">
                         <!-- Mr. X Selection -->
                         <?php if ($userInGame && $game['status'] == 'waiting' && count($players) >= 2): ?>
                             <div class="card mb-3">
@@ -863,6 +903,12 @@ if ($game['status'] == 'waiting') {
                                                             <span class="badge bg-info ms-2">Controlled by <?= htmlspecialchars($assignedTo) ?></span>
                                                         <?php else: ?>
                                                             <span class="badge bg-secondary ms-2">AI Controlled</span>
+                                                        <?php endif; ?>
+                                                        <?php if ($game['status'] == 'waiting'): ?>
+                                                            <form class="remove-ai-form" method="POST" style="display:inline-block; margin-left:10px;">
+                                                                <input type="hidden" name="remove_ai_detective" value="<?= $aiDetective['id'] ?>">
+                                                                <button type="button" class="btn btn-sm btn-outline-danger remove-ai-btn">Remove</button>
+                                                            </form>
                                                         <?php endif; ?>
                                                     </div>
                                                 <?php endforeach; ?>
@@ -984,7 +1030,7 @@ if ($game['status'] == 'waiting') {
                                                 <li class="list-group-item d-flex justify-content-between align-items-center">
                                                     <span>
                                                         <strong><?= htmlspecialchars($player['username']) ?></strong>
-                                                        <?php if ($player['user_id'] === null): ?>
+                                                        <?php if ($player['user_id'] === null || $player['is_ai'] == 1): ?>
                                                             <span class="badge bg-secondary ms-2">AI</span>
                                                         <?php endif; ?>
                                                         <?php if ($player['player_type'] == 'mr_x'): ?>
@@ -1071,7 +1117,9 @@ if ($game['status'] == 'waiting') {
                 <?php endif; ?>
             </div>
 
-            <?php if ($game['status'] == 'active' || $game['status'] == 'finished'): ?>
+            <?php 
+            $canMakeMove = false;
+            if ($game['status'] == 'active' || $game['status'] == 'finished'): ?>
             <div class="board-sidebar">
                 <div id="play">
                     <h1>SSY - <?= htmlspecialchars($game['game_name']) ?>
@@ -1158,7 +1206,6 @@ if ($game['status'] == 'waiting') {
                         <!-- Move Interface -->
                         <?php 
                         // Check if it's the current player's turn and they can make a move
-                        $canMakeMove = false;
                         $currentPlayerForMove = null;
                         
                         if ($userInGame && $game['status'] == 'active') {
@@ -1262,6 +1309,26 @@ if ($game['status'] == 'waiting') {
     </div>
     <script src="https://code.jquery.com/jquery-3.7.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Confirmation Modal -->
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="confirmModalLabel">Confirm Action</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" id="confirmModalBody">
+            Are you sure you want to proceed?
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-danger" id="confirmModalYes">Yes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
     <script>
         // Map zoom functionality
         let currentZoom = 0.6; // Starting zoom level (60%)
@@ -1456,6 +1523,7 @@ if ($game['status'] == 'waiting') {
         }, 3000); // Refresh every 3 seconds when waiting
         <?php endif; ?>
 
+        <?php if($canMakeMove): ?>
         // Handle move selection
         document.getElementById('move').addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
@@ -1480,6 +1548,7 @@ if ($game['status'] == 'waiting') {
                 moveSelect.value = moveOption.value;
             }
         });
+        <?php endif; ?>
 
         // Handle X button (hidden move)
         const moveXBtn = document.getElementById('move-x');
@@ -1583,6 +1652,42 @@ if ($game['status'] == 'waiting') {
             // Update when player selection changes
             playerSelect.addEventListener('change', updateMoveOptions);
         }
+
+        // Bootstrap modal confirmation for Leave Game and Remove AI Detective
+        let confirmAction = null;
+        let confirmForm = null;
+        let confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+
+        // Leave Game
+        const leaveGameBtn = document.getElementById('leave-game-btn');
+        if (leaveGameBtn) {
+            leaveGameBtn.addEventListener('click', function(e) {
+                confirmAction = 'leave';
+                confirmForm = document.getElementById('leave-game-form');
+                document.getElementById('confirmModalBody').textContent = 'Are you sure you want to leave the game?';
+                confirmModal.show();
+            });
+        }
+
+        // Remove AI Detective
+        const removeAiBtns = document.querySelectorAll('.remove-ai-btn');
+        removeAiBtns.forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                confirmAction = 'remove_ai';
+                confirmForm = btn.closest('form');
+                document.getElementById('confirmModalBody').textContent = 'Are you sure you want to remove this AI detective?';
+                confirmModal.show();
+            });
+        });
+
+        // Modal Yes button
+        const confirmModalYes = document.getElementById('confirmModalYes');
+        confirmModalYes.addEventListener('click', function() {
+            if (confirmForm) {
+                confirmForm.submit();
+                confirmModal.hide();
+            }
+        });
     </script>
 </body>
 </html> 

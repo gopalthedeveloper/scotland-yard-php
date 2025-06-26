@@ -377,5 +377,26 @@ class Database {
         $stmt = $this->pdo->prepare("INSERT INTO user_game_mappings (game_id, user_id, player_id, mapping_type) VALUES (?, ?, ?, 'owner')");
         $stmt->execute([$player['game_id'], $userId, $aiPlayerId]);
     }
+
+    public function convertHumanToAIDetective($playerId) {
+        $stmt = $this->pdo->prepare("UPDATE game_players SET is_ai = 1, player_type = 'detective' WHERE id = ?");
+        $stmt->execute([$playerId]);
+    }
+
+    public function removeUserFromGame($userId) {
+        // Remove all user_game_mappings for this player
+        $stmt = $this->pdo->prepare("DELETE FROM user_game_mappings WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        
+    }
+
+    public function removeAIDetective($playerId) {
+        // Only remove if is_ai = 1
+        $stmt = $this->pdo->prepare("DELETE FROM game_players WHERE id = ? AND is_ai = 1");
+        $stmt->execute([$playerId]);
+        // Remove any mappings just in case
+        $stmt = $this->pdo->prepare("DELETE FROM user_game_mappings WHERE player_id = ?");
+        $stmt->execute([$playerId]);
+    }
 }
 ?> 
