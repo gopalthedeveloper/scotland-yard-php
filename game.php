@@ -26,25 +26,59 @@ if (!$game) {
 
 $user = $db->getUserById($_SESSION['user_id']);
 $players = $db->getGamePlayers($gameId);
+$humanPlayers = $db->getHumanPlayers($gameId);
 $currentPlayer = $db->getCurrentPlayer($gameId);
 
 // Check if user is in this game
 $userInGame = false;
 $userPlayer = null;
 foreach ($players as $player) {
-    if ($player['user_id'] == $_SESSION['user_id']) {
+    if ($player['user_id'] == $_SESSION['user_id'] && $player['mapping_type'] == 'owner') {
         $userInGame = true;
         $userPlayer = $player;
         break;
     }
 }
 
+// Also check if user controls any AI detectives
+if (!$userInGame) {
+    foreach ($players as $player) {
+        if ($player['is_ai'] && $player['controlled_by_user_id'] == $_SESSION['user_id']) {
+            $userInGame = true;
+            $userPlayer = $player;
+            break;
+        }
+    }
+}
+// var_dump($userInGame);die;
 // Handle join game
-if (!$userInGame && $game['status'] == 'waiting' && count($players) < $game['max_players']) {
+if (!$userInGame && $game['status'] == 'waiting' && count($humanPlayers) < $game['max_players']) {
     if (isset($_POST['join_game'])) {
-        $playerType = 'detective'; // Default to detective, can be changed to Mr. X later
-        $playerOrder = count($players);
-        $db->addPlayerToGame($gameId, $_SESSION['user_id'], $playerType, $playerOrder);
+        // Try to find an unassigned AI detective
+        $aiDetectives = $db->getAIDetectives($gameId);
+        $assigned = false;
+        foreach ($aiDetectives as $ai) {
+            // Check if this AI detective is not controlled by any user (no owner mapping)
+            $hasOwner = false;
+            foreach ($players as $p) {
+                if ($p['id'] == $ai['id'] && $p['mapping_type'] == 'owner') {
+                    $hasOwner = true;
+                    break;
+                }
+            }
+            if (!$hasOwner) {
+                // Assign this AI detective to the user
+                $db->assignAIDetectiveToUser($ai['id'], $_SESSION['user_id']);
+                $assigned = true;
+                break;
+            }
+        }
+        if (!$assigned) {
+            // No available AI detective, create a new detective for the user
+            $playerType = 'detective';
+            $playerOrder = count($players);
+            $db->addPlayerToGame($gameId, $_SESSION['user_id'], $playerType, $playerOrder);
+        }
         header("Location: game.php?id=$gameId");
         exit();
     }
@@ -56,20 +90,21 @@ if ($userInGame && $game['status'] == 'waiting' && isset($_POST['select_mr_x']))
     
     // Verify the selected player is in this game
     $validPlayer = false;
+
     foreach ($players as $player) {
-        if ($player['id'] == $selectedPlayerId) {
-            $validPlayer = true;
+        if ($player['id'] == $selectedPlayerId && $player['mapping_type'] == 'owner') {
+            $validPlayer = $player;
             break;
         }
     }
     
     if ($validPlayer) {
         // Change all players to detectives first
-        foreach ($players as $player) {
-            $db->updatePlayerType($player['id'], 'detective');
-        }
+        $db->updatePlayerType($gameId, 'detective','game');
         // Set the selected player as Mr. X
         $db->updatePlayerType($selectedPlayerId, 'mr_x');
+        // Remove user as controller
+        $db->deleteUserPlayerMapping($validPlayer['user_id'], 'controller');
         
         // Reorder players: Mr. X gets order 0, detectives get 1, 2, 3, etc.
         $db->updatePlayerOrder($selectedPlayerId, 0);
@@ -89,16 +124,17 @@ if ($userInGame && $game['status'] == 'waiting' && isset($_POST['select_mr_x']))
     }
 }
 
+// Check if Mr. X is assigned
+$mrXAssigned = false;
+foreach ($players as $player) {
+    if ($player['player_type'] == 'mr_x') {
+        $mrXAssigned = true;
+        break;
+    }
+}
+
 // Handle game initialization
 if ($game['status'] == 'waiting' && count($players) >= 2 && isset($_POST['start_game'])) {
-    // Check if Mr. X is assigned
-    $mrXAssigned = false;
-    foreach ($players as $player) {
-        if ($player['player_type'] == 'mr_x') {
-            $mrXAssigned = true;
-            break;
-        }
-    }
     
     if (!$mrXAssigned) {
         $_SESSION['game_error'] = 'Please select Mr. X before starting the game.';
@@ -117,9 +153,16 @@ if ($game['status'] == 'active' && $userInGame && isset($_POST['make_move'])) {
     $transportType = $_POST['transport_type'] ?? null;
     $isHidden = isset($_POST['is_hidden'])?$_POST['is_hidden']:false;
     $isDoubleMove = isset($_POST['is_double_move'])?$_POST['is_double_move']:false;
+    $controlledDetectiveId = $_POST['controlled_detective_id'] ?? null;
+    
+    // Determine which player is making the move
+    $playerMakingMove = $userPlayer;
+    if ($currentPlayer['id'] != $userPlayer['id'] && $currentPlayer['is_ai'] && $currentPlayer['controlled_by_user_id'] == $_SESSION['user_id']) {
+        $playerMakingMove = $currentPlayer;
+    }
     
     if ($toPosition && $transportType) {
-        $result = $gameEngine->makeMove($gameId, $userPlayer['id'], $toPosition, $transportType, $isHidden, $isDoubleMove);
+        $result = $gameEngine->makeMove($gameId, $playerMakingMove['id'], $toPosition, $transportType, $isHidden, $isDoubleMove, $controlledDetectiveId);
         if ($result['success']) {
             header("Location: game.php?id=$gameId");
             exit();
@@ -136,6 +179,65 @@ if ($game['status'] == 'active' && $userInGame && isset($_POST['make_move'])) {
     }
 }
 
+// Handle detective assignments
+if ($userInGame && $game['status'] == 'waiting' && isset($_POST['assign_detectives'])) {
+    $assignments = $_POST['detective_assignments'] ?? [];
+    
+    $aiDetectives = [];
+    if(count($assignments) > 0){
+        $aiDetectives = $db->getAIDetectives($gameId);
+    }
+    
+    if(count($aiDetectives) > 0){
+      
+        $aiDetectivesById = array_column($aiDetectives,null,'id');
+       
+        // Get joined users who are detectives (excluding AI and Mr. X)
+        $joinedUsers = [];
+        foreach ($players as $player) {
+            if ($player['player_type'] == 'detective' && $player['user_id'] !== null) {
+                $joinedUsers[$player['user_id']] = $player['username'];
+            }
+        }
+        
+           
+        // Apply new assignments
+        foreach ($assignments as $detectiveId => $controllingUserId) {
+            if ($controllingUserId && isset($aiDetectivesById[$detectiveId]) && $aiDetectivesById[$detectiveId]['controlled_by_user_id'] != $controllingUserId) {
+                $db->assignDetectiveToPlayer($detectiveId, $controllingUserId);
+            } else if($controllingUserId == 'none'){
+                $db->deleteUserPlayerMapping($detectiveId, 'controller','player');
+            }
+        }
+    }
+        
+    $_SESSION['game_success'] = 'Detective assignments updated successfully!';
+    header("Location: game.php?id=$gameId");
+    exit();
+}
+// Handle AI detective creation
+if ($userInGame && $game['status'] == 'waiting' && isset($_POST['create_ai_detectives'])) {
+    $numDetectives = (int)($_POST['num_ai_detectives'] ?? 0);
+    
+    if ($numDetectives > 0 && $numDetectives <= $game['max_players']) { // Limit to 10 AI detectives
+        // Get current player count to determine starting order
+        $currentPlayerCount = count($players);
+        
+        // Create AI detectives
+        for ($i = 0; $i < $numDetectives; $i++) {
+            $db->createAIDetective($gameId, $currentPlayerCount + $i);
+        }
+        
+        $_SESSION['game_success'] = "Created $numDetectives AI detective(s) successfully!";
+        header("Location: game.php?id=$gameId");
+        exit();
+    } else {
+        $_SESSION['game_error'] = 'Please enter a valid number of AI detectives (1-10).';
+        header("Location: game.php?id=$gameId");
+        exit();
+    }
+}
+
 // Refresh data
 $game = $db->getGame($gameId);
 $players = $db->getGamePlayers($gameId);
@@ -144,8 +246,15 @@ $gameState = $gameEngine->getGameState($gameId);
 
 // Get possible moves for current user
 $possibleMoves = [];
-if ($userInGame && $game['status'] == 'active' && $currentPlayer['id'] == $userPlayer['id']) {
-    $possibleMoves = $gameEngine->getPossibleMovesForPlayer($gameId, $userPlayer['id']);
+if ($userInGame && $game['status'] == 'active') {
+    // Check if current player is the user's player
+    if ($currentPlayer['id'] == $userPlayer['id']) {
+        $possibleMoves = $gameEngine->getPossibleMovesForPlayer($gameId, $userPlayer['id']);
+    }
+    // Check if current player is an AI detective controlled by the user
+    elseif ($currentPlayer['is_ai'] && $currentPlayer['controlled_by_user_id'] == $_SESSION['user_id']) {
+        $possibleMoves = $gameEngine->getPossibleMovesForPlayer($gameId, $currentPlayer['id']);
+    }
 }
 
 // Generate QR data for Mr. X
@@ -568,6 +677,27 @@ if ($game['status'] == 'waiting') {
             background-color: rgba(255, 193, 7, 0.3);
             border-radius: 5px;
         }
+
+        .detective-assignment {
+            background: #f8f9fa;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 5px 0;
+        }
+
+        .detective-assignment ul {
+            margin-bottom: 0;
+            padding-left: 20px;
+        }
+
+        .detective-assignment li {
+            margin-bottom: 2px;
+        }
+
+        .highlighted {
+            background-color: #fff3cd !important;
+            border: 2px solid #ffc107 !important;
+        }
     </style>
 </head>
 <body>
@@ -591,9 +721,9 @@ if ($game['status'] == 'waiting') {
                         Status: <span class="badge bg-<?= $game['status'] == 'waiting' ? 'warning' : ($game['status'] == 'active' ? 'success' : 'danger') ?>">
                             <?= ucfirst($game['status']) ?>
                         </span>
-                        | Round: <?= $game['current_round'] ?> | Players: <?= count($players) ?>/<?= $game['max_players'] ?>
+                        | Round: <?= $game['current_round'] ?> | Players: <?= count($humanPlayers) ?>/<?= $game['max_players'] ?> (<?= count($players) ?> total)
                         <!-- Join Game -->
-                        <?php if (!$userInGame && count($players) < $game['max_players']):?> 
+                        <?php if (!$userInGame && count($humanPlayers) < $game['max_players']):?> 
                         <button type="submit" name="join_game" class="btn btn-primary ms-3" onclick="document.getElementById('join-form').submit();">Join Game</button>
                         <form id="join-form" method="POST" style="display: none;">
                             <input type="hidden" name="join_game" value="1">
@@ -655,7 +785,9 @@ if ($game['status'] == 'waiting') {
                                             <div class="col-md-8">
                                                 <select class="form-select" name="mr_x_player" required>
                                                     <option value="">Select a player...</option>
-                                                    <?php foreach ($players as $player): ?>
+                                                    <?php foreach ($players as $player): 
+                                                        if($player['mapping_type'] !== 'owner')continue;
+                                                        ?>
                                                         <option value="<?= $player['id'] ?>" <?= ($player['player_type'] == 'mr_x') ? 'selected' : '' ?>>
                                                             <?= htmlspecialchars($player['username']) ?> 
                                                             (<?= $player['player_type'] == 'mr_x' ? 'Currently Mr. X' : 'Detective' ?>)
@@ -672,18 +804,151 @@ if ($game['status'] == 'waiting') {
                             </div>
                         <?php endif; ?>
 
-                        <!-- Start Game -->
-                        <?php if ($userInGame && $game['status'] == 'waiting' && count($players) >= 2): ?>
+                        <!-- AI Detective Creation -->
+                        <?php if ($userInGame && $mrXAssigned && $game['status'] == 'waiting' && count($players) >= 2): ?>
                             <?php 
-                            // Check if Mr. X is assigned
-                            $mrXAssigned = false;
+                            // Get current AI detectives
+                            $aiDetectives = $db->getAIDetectives($gameId);
+                            $totalDetectives = count($players) - 1; // Exclude Mr. X
+                            $maxPossibleDetectives = $game['max_players'] - 1; // Max players minus 1 for Mr. X
+                            $canCreateMore = $totalDetectives < $maxPossibleDetectives;
+                            $assignment = $db->getDetectiveAssignments($gameId);
+                            $assignmentByPlayer = array_column($assignment,null,'id');
+                            ?>
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h5>Create AI Detectives</h5>
+                                    <p>Add AI-controlled detectives to the game (<?= $totalDetectives ?> current detectives, max <?= $maxPossibleDetectives ?>):</p>
+                                    
+                                    <?php if (!$canCreateMore): ?>
+                                        <div class="alert alert-warning">
+                                            <strong>Maximum detectives reached!</strong> You cannot create more detectives.
+                                        </div>
+                                    <?php else: ?>
+                                        <form method="POST" class="row">
+                                            <div class="col-md-6">
+                                                <label class="form-label">Number of AI detectives to create:</label>
+                                                <select class="form-select" name="num_ai_detectives" required>
+                                                    <option value="">Select number...</option>
+                                                    <?php for ($i = 1; $i <= min(10, $maxPossibleDetectives - $totalDetectives); $i++): ?>
+                                                        <option value="<?= $i ?>"><?= $i ?> detective<?= $i > 1 ? 's' : '' ?></option>
+                                                    <?php endfor; ?>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6 d-flex align-items-end">
+                                                <button type="submit" name="create_ai_detectives" class="btn btn-success">Create AI Detectives</button>
+                                            </div>
+                                        </form>
+                                    <?php endif; ?>
+                                    
+                                    <!-- Show current AI detectives -->
+                                    <?php if (!empty($aiDetectives)): ?>
+                                        <div class="mt-3">
+                                            <h6>Current AI Detectives:</h6>
+                                            <div class="detective-assignment">
+                                                <?php 
+                                                
+                                                foreach ($aiDetectives as $aiDetective): ?>
+                                                    <div class="mb-1">
+                                                        <strong>AI Detective <?= $aiDetective['id'] ?></strong>
+                                                        <?php 
+                                                        $isAssigned = false;
+                                                        $assignedTo = '';
+                                                        if(isset($assignmentByPlayer[$aiDetective['id']]) && $assignmentByPlayer[$aiDetective['id']]['controlled_by_user_id']){
+                                                            $isAssigned = true;
+                                                            $assignedTo = $assignmentByPlayer[$aiDetective['id']]['username'];
+                                                        }
+                                                        ?>
+                                                        <?php if ($isAssigned): ?>
+                                                            <span class="badge bg-info ms-2">Controlled by <?= htmlspecialchars($assignedTo) ?></span>
+                                                        <?php else: ?>
+                                                            <span class="badge bg-secondary ms-2">AI Controlled</span>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        <?php
+                            // Get joined users who are detectives (excluding AI and Mr. X)
+                            $joinedUsers = [];
                             foreach ($players as $player) {
-                                if ($player['player_type'] == 'mr_x') {
-                                    $mrXAssigned = true;
-                                    break;
+                                if ($player['player_type'] == 'detective' && $player['user_id'] !== null) {
+                                    $joinedUsers[$player['user_id']] = $player['username'];
                                 }
                             }
                             ?>
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h5>Assign Detectives</h5>
+                                    <p>Assign detectives to players (<?= count($joinedUsers) ?> joined detectives can control <?= count($aiDetectives) - count($joinedUsers) ?> additional detectives):</p>
+                                    
+                                    <?php if (count($aiDetectives) == 0): ?>
+                                        <div class="alert alert-info">
+                                            <strong>No detectives to assign!</strong> All detectives are already controlled by joined players.
+                                        </div>
+                                    <?php else: ?>
+                                        <form method="POST">
+                                            <div class="row">
+                                                <?php foreach ($aiDetectives as $detective): ?>
+                                                    <div class="col-md-6 mb-2">
+                                                        <label class="form-label">
+                                                            <strong>AI Detective <?= $detective['id'] ?></strong>
+                                                        </label>
+                                                        <select class="form-select" name="detective_assignments[<?= $detective['id'] ?>]">
+                                                            <option value="none">No assignment (AI controlled)</option>
+                                                            <?php foreach ($joinedUsers as $userId => $username): ?>
+                                                                <option value="<?= $userId ?>" <?= (isset($assignmentByPlayer[$detective['id']]) && $assignmentByPlayer[$detective['id']]['controlled_by_user_id'] == $userId) ? 'selected' : '' ?>>
+                                                                    <?= htmlspecialchars($username) ?>
+                                                                </option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                            <div class="mt-3">
+                                                <button type="submit" name="assign_detectives" class="btn btn-info">Update Assignments</button>
+                                            </div>
+                                        </form>
+                                    <?php endif; ?>
+                                    
+                                    <!-- Show current assignments -->
+                                    <div class="mt-3">
+                                        <h6>Current Assignments:</h6>
+                                        <div class="detective-assignment">
+                                            <?php foreach ($joinedUsers as $userId => $username): ?>
+                                                <div class="mb-2">
+                                                    <strong><?= htmlspecialchars($username) ?></strong> controls:
+                                                    <ul class="mt-1">
+                                                        <li>• Their own detective (Detective <?= $userId ?>)</li>
+                                                        <?php 
+                                                        $controlledCount = 0;
+                                                        foreach ($aiDetectives as $detective): 
+                                                            if ($detective['controlled_by_user_id'] == $userId && $detective['id'] != $userId):
+                                                                $controlledCount++;
+                                                                $isAI = $detective['user_id'] === null;
+                                                        ?>
+                                                            <li>• <?= $isAI ? 'AI Detective' : 'Detective' ?> <?= $detective['id'] ?></li>
+                                                        <?php 
+                                                            endif;
+                                                        endforeach; 
+                                                        if ($controlledCount == 0):
+                                                        ?>
+                                                            <li class="text-muted">• No additional detectives</li>
+                                                        <?php endif; ?>
+                                                    </ul>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Start Game -->
+                        <?php if ($userInGame && $game['status'] == 'waiting' && count($players) >= 2): ?>
                             
                             <?php if ($mrXAssigned): ?>
                                 <div class="card">
@@ -719,6 +984,9 @@ if ($game['status'] == 'waiting') {
                                                 <li class="list-group-item d-flex justify-content-between align-items-center">
                                                     <span>
                                                         <strong><?= htmlspecialchars($player['username']) ?></strong>
+                                                        <?php if ($player['user_id'] === null): ?>
+                                                            <span class="badge bg-secondary ms-2">AI</span>
+                                                        <?php endif; ?>
                                                         <?php if ($player['player_type'] == 'mr_x'): ?>
                                                             <span class="badge bg-danger ms-2">Mr. X</span>
                                                         <?php else: ?>
@@ -728,7 +996,13 @@ if ($game['status'] == 'waiting') {
                                                             <span class="badge bg-success ms-2">You</span>
                                                         <?php endif; ?>
                                                     </span>
-                                                    <small class="text-muted">Joined <?= date('M j, g:i A', strtotime($player['joined_at'])) ?></small>
+                                                    <small class="text-muted">
+                                                        <?php if ($player['user_id'] !== null): ?>
+                                                            Joined <?= date('M j, g:i A', strtotime($player['joined_at'])) ?>
+                                                        <?php else: ?>
+                                                            AI Detective
+                                                        <?php endif; ?>
+                                                    </small>
                                                 </li>
                                             <?php endforeach; ?>
                                         </ul>
@@ -876,92 +1150,39 @@ if ($game['status'] == 'waiting') {
                                             </li>
                                         <?php endforeach; ?>
                                     </ul>
-                                <?php endif; ?>
-                                
-                                <?php
-                                if (!empty($moves)):
-                                    // Group moves by round
-                                    $movesByRound = [];
-                                    foreach ($moves as $move) {
-                                        $round = $move['round_number'];
-                                        if (!isset($movesByRound[$round])) {
-                                            $movesByRound[$round] = [];
-                                        }
-                                        $movesByRound[$round][] = $move;
-                                    }
-                                    
-                                    // Display moves by round (newest first)
-                                    foreach (array_reverse($movesByRound, true) as $round => $roundMoves):
-                                ?>
-                                    <ul>
-                                        <li class="rounds">R<?= $round ?></li>
-                                        <?php 
-                                        // Find moves for each player in this round
-                                        $playerMoves = [];
-                                        foreach ($roundMoves as $move) {
-                                            $playerIndex = array_search($move['player_id'], array_column($players, 'id'));
-                                            if ($playerIndex !== false) {
-                                                if (!isset($playerMoves[$playerIndex])) {
-                                                    $playerMoves[$playerIndex] = [];
-                                                }
-                                                $playerMoves[$playerIndex][] = $move;
-                                            }
-                                        }
-                                        
-                                        foreach ($players as $index => $player): 
-                                            $pMoves = $playerMoves[$index] ?? [];
-                                            $move = array_shift($pMoves);
-
-                                            if(false){
-                                                doubleMove:
-                                                $move = array_shift($pMoves);
-                                                ?>
-                                                </ul>
-                                                <ul>
-                                                    <li class="rounds">R<?= $round ?></li>
-                                            <?php
-                                            } 
-                                            if ($move): ?>
-                                                <?php
-                                                $transportType = $move['transport_type'];
-                                                $showMove = true;
-                                                
-                                                // Hide Mr. X moves unless it's a reveal round or game is finished
-                                                if ($player['player_type'] == 'mr_x' && $game['status'] == 'active' && !$isUserMrX) {
-                                                    $showMove = in_array($round, [3, 8, 13, 18, 23, 28, 33, 38]) || $game['status'] == 'finished';
-                                                }
-                                                $transportType = $move['is_hidden']? 'X':$move['transport_type'];
-
-                                                $moveText = $showMove ? $transportType . '.' . $move['to_position'] :$transportType . '.--';
-                                                
-                                                ?>
-                                                <li class="moves m_<?= $transportType ?>">
-                                                    <?= $moveText ?>
-                                                </li>
-                                            <?php endif; 
-                                            if(count($pMoves) > 0){
-                                                goto doubleMove;
-                                            }
-                                            ?>
-
-                                        <?php endforeach; ?>
-                                    </ul>
-                                <?php 
-                                    endforeach;
-                                endif;
+                                <?php endif;
                                 ?>
                             </div>
                         </div>
 
                         <!-- Move Interface -->
-                        <?php if ($userInGame && $game['status'] == 'active' && $currentPlayer['id'] == $userPlayer['id']): ?>
+                        <?php 
+                        // Check if it's the current player's turn and they can make a move
+                        $canMakeMove = false;
+                        $currentPlayerForMove = null;
+                        
+                        if ($userInGame && $game['status'] == 'active') {
+                            // Check if current player is the user's player
+                            if ($currentPlayer['id'] == $userPlayer['id']) {
+                                $canMakeMove = true;
+                                $currentPlayerForMove = $userPlayer;
+                            }
+                            // Check if current player is an AI detective controlled by the user
+                            elseif ($currentPlayer['is_ai'] && $currentPlayer['controlled_by_user_id'] == $_SESSION['user_id']) {
+                                $canMakeMove = true;
+                                $currentPlayerForMove = $currentPlayer;
+                            }
+                        }
+                        
+                        if ($canMakeMove): 
+                        ?>
                             <div id="movewrap">
                                 <div id="moveinfo">
                                     <h4>Round: <?= $game['current_round'] ?></h4>
-                                    <?php if ($userPlayer['player_type'] == 'mr_x'): ?>
-                                        <p>T: <?= $userPlayer['taxi_tickets'] ?> B: <?= $userPlayer['bus_tickets'] ?> U: <?= $userPlayer['underground_tickets'] ?> X: <?= $userPlayer['hidden_tickets'] ?> 2: <?= $userPlayer['double_tickets'] ?></p>
+                                    <?php if ($currentPlayerForMove['player_type'] == 'mr_x'): ?>
+                                        <p>T: <?= $currentPlayerForMove['taxi_tickets'] ?> B: <?= $currentPlayerForMove['bus_tickets'] ?> U: <?= $currentPlayerForMove['underground_tickets'] ?> X: <?= $currentPlayerForMove['hidden_tickets'] ?> 2: <?= $currentPlayerForMove['double_tickets'] ?></p>
                                     <?php else: ?>
-                                        <p>T: <?= $userPlayer['taxi_tickets'] ?> B: <?= $userPlayer['bus_tickets'] ?> U: <?= $userPlayer['underground_tickets'] ?></p>
+                                        <p>T: <?= $currentPlayerForMove['taxi_tickets'] ?> B: <?= $currentPlayerForMove['bus_tickets'] ?> U: <?= $currentPlayerForMove['underground_tickets'] ?></p>
                                     <?php endif; ?>
                                 </div>
 
@@ -969,35 +1190,51 @@ if ($game['status'] == 'waiting') {
                                     <input type="hidden" name="is_hidden" id="is_hidden" value="">
                                     <input type="hidden" name="is_double_move" id="is_double_move" value="">
                                     
+                                    <!-- Player Selection (for controlled detectives) -->
+                                    <?php if (is_array($possibleMoves) && count($possibleMoves) > 1): ?>
+                                        <select id="player-select" name="controlled_detective_id" class="form-select mb-2">
+                                            <option value="">Select player to move...</option>
+                                            <?php foreach ($possibleMoves as $playerMoves): ?>
+                                                <option value="<?= $playerMoves['is_main_player'] ? '' : $playerMoves['player_id'] ?>">
+                                                    <?= htmlspecialchars($playerMoves['player_name']) ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    <?php endif; ?>
+                                    
                                     <select id="move" name="to_position" required>
                                         <option value="">Select destination...</option>
-                                        <?php foreach ($possibleMoves as $move): ?>
-                                            <option value="<?= $move['to_position'] ?>" data-transport="<?= $move['transport_type'] ?>">
-                                                <?= $move['to_position'] ?> (<?= $move['label'] ?>)
-                                            </option>
-                                        <?php endforeach; ?>
+                                        <?php if (!is_array($possibleMoves) || count($possibleMoves) == 1): ?>
+                                            <?php foreach ($possibleMoves as $move): ?>
+                                                <option value="<?= $move['to_position'] ?>" data-transport="<?= $move['transport_type'] ?>">
+                                                    <?= $move['to_position'] ?> (<?= $move['label'] ?>)
+                                                </option>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
                                     </select>
                                     
                                     <select name="transport_type" required>
                                         <option value="">Select transport...</option>
-                                        <?php $uniqueTransports = [];
-                                         foreach ($possibleMoves as $move):
-                                            if(in_array($move['transport_type'], $uniqueTransports))continue;
-                                            $uniqueTransports[] = $move['transport_type'];
-                                          ?>
-                                            <option value="<?= $move['transport_type'] ?>" data-position="<?= $move['to_position'] ?>">
-                                                <?= $move['label'] ?>
-                                            </option>
-                                        <?php endforeach; ?>
+                                        <?php if (!is_array($possibleMoves) || count($possibleMoves) == 1): ?>
+                                            <?php $uniqueTransports = [];
+                                             foreach ($possibleMoves as $move):
+                                                if(in_array($move['transport_type'], $uniqueTransports))continue;
+                                                $uniqueTransports[] = $move['transport_type'];
+                                              ?>
+                                                <option value="<?= $move['transport_type'] ?>" data-position="<?= $move['to_position'] ?>">
+                                                    <?= $move['label'] ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
                                     </select>
 
-                                    <?php if ($userPlayer['player_type'] == 'mr_x'): ?>
+                                    <?php if ($currentPlayerForMove['player_type'] == 'mr_x'): ?>
                                         <div class="mt-3">
                                             <button type="button" id="move-x" class="btn btn-secondary">X</button>
                                             <?php 
                                             // Check if double move has already been used this round
                                             $doubleMoveUsed = $db->getGameSetting($gameId, 'double_move_used_round_' . $game['current_round']);
-                                            $doubleMoveDisabled = ($doubleMoveUsed == '1' || $userPlayer['double_tickets'] <= 0);
+                                            $doubleMoveDisabled = ($doubleMoveUsed == '1' || $currentPlayerForMove['double_tickets'] <= 0);
                                             ?>
                                             <button type="button" id="move-2" class="btn btn-secondary <?= $doubleMoveDisabled ? 'disabled' : '' ?>" <?= $doubleMoveDisabled ? 'disabled' : '' ?> title="<?= $doubleMoveDisabled ? 'Double move not available' : 'Double move' ?>">2</button>
                                         </div>
@@ -1007,6 +1244,14 @@ if ($game['status'] == 'waiting') {
                                         <button type="submit" name="make_move" class="btn btn-primary">Go</button>
                                     </div>
                                 </form>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <!-- Waiting Message -->
+                        <?php if ($userInGame && $game['status'] == 'active' && !$canMakeMove): ?>
+                            <div class="alert alert-warning">
+                                <h5>Waiting for <?= htmlspecialchars($currentPlayer['username'] ?? 'Unknown Player') ?> to make their move...</h5>
+                                <p>It's not your turn yet. Please wait for the current player to complete their move.</p>
                             </div>
                         <?php endif; ?>
                     <?php endif; ?>
@@ -1204,6 +1449,13 @@ if ($game['status'] == 'waiting') {
         //     location.reload();
         // }, 5000);
 
+        // Auto-refresh when it's not the user's turn
+        <?php if ($userInGame && $game['status'] == 'active' && !$canMakeMove): ?>
+        setTimeout(function() {
+            location.reload();
+        }, 3000); // Refresh every 3 seconds when waiting
+        <?php endif; ?>
+
         // Handle move selection
         document.getElementById('move').addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
@@ -1272,6 +1524,64 @@ if ($game['status'] == 'waiting') {
                     this.classList.remove('btn-secondary');
                 }
             });
+        }
+
+        // Detective control functionality
+        const playerSelect = document.getElementById('player-select');
+        const moveSelect = document.getElementById('move');
+        const transportSelect = document.querySelector('select[name="transport_type"]');
+        
+        if (playerSelect && moveSelect && transportSelect) {
+            // Store the original possible moves data
+            const possibleMovesData = <?= json_encode($possibleMoves) ?>;
+            
+            function updateMoveOptions() {
+                const selectedPlayerId = playerSelect.value;
+                let selectedPlayerMoves = null;
+                
+                // Find the selected player's moves
+                if (selectedPlayerId === '') {
+                    // Main player
+                    selectedPlayerMoves = possibleMovesData.find(p => p.is_main_player);
+                } else {
+                    // Controlled detective
+                    selectedPlayerMoves = possibleMovesData.find(p => p.player_id == selectedPlayerId);
+                }
+                
+                if (selectedPlayerMoves) {
+                    // Update destination options
+                    moveSelect.innerHTML = '<option value="">Select destination...</option>';
+                    selectedPlayerMoves.moves.forEach(move => {
+                        const option = document.createElement('option');
+                        option.value = move.to_position;
+                        option.textContent = `${move.to_position} (${move.label})`;
+                        option.dataset.transport = move.transport_type;
+                        moveSelect.appendChild(option);
+                    });
+                    
+                    // Update transport options
+                    transportSelect.innerHTML = '<option value="">Select transport...</option>';
+                    const uniqueTransports = [];
+                    selectedPlayerMoves.moves.forEach(move => {
+                        if (!uniqueTransports.includes(move.transport_type)) {
+                            uniqueTransports.push(move.transport_type);
+                            const option = document.createElement('option');
+                            option.value = move.transport_type;
+                            option.textContent = move.label;
+                            option.dataset.position = move.to_position;
+                            transportSelect.appendChild(option);
+                        }
+                    });
+                }
+            }
+            
+            // Initialize with first player's moves
+            if (possibleMovesData.length > 0) {
+                updateMoveOptions();
+            }
+            
+            // Update when player selection changes
+            playerSelect.addEventListener('change', updateMoveOptions);
         }
     </script>
 </body>

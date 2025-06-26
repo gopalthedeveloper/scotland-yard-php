@@ -62,12 +62,25 @@ class GameEngine {
     }
     
     // Move validation and execution
-    public function makeMove($gameId, $playerId, $toPosition, $transportType, $isHidden = false, $isDoubleMove = false) {
+    public function makeMove($gameId, $playerId, $toPosition, $transportType, $isHidden = false, $isDoubleMove = false, $controlledDetectiveId = null) {
         $game = $this->db->getGame($gameId);
         $currentPlayer = $this->db->getCurrentPlayer($gameId);
         
+        // If controlling a detective, validate the assignment
+        if ($controlledDetectiveId) {
+            if (!$this->canPlayerControlDetective($gameId, $playerId, $controlledDetectiveId)) {
+                return ['success' => false, 'message' => 'You cannot control this detective'];
+            }
+            // Use the detective's data for the move
+            $detectivePlayer = $this->db->getPlayerById($controlledDetectiveId);
+            if (!$detectivePlayer) {
+                return ['success' => false, 'message' => 'Detective not found'];
+            }
+            $currentPlayer = $detectivePlayer;
+        }
+        
         // Validate it's the player's turn
-        if ($currentPlayer['id'] != $playerId) {
+        if ($currentPlayer['id'] != $playerId && !$controlledDetectiveId) {
             return ['success' => false, 'message' => 'Not your turn'];
         }
         
@@ -85,13 +98,13 @@ class GameEngine {
         }
         
         // Validate move
-        $validation = $this->validateMove($playerId, $currentPlayer['current_position'], $toPosition, $transportType, $isHidden, $isDoubleMove);
+        $validation = $this->validateMove($controlledDetectiveId ?: $playerId, $currentPlayer['current_position'], $toPosition, $transportType, $isHidden, $isDoubleMove);
         if (!$validation['valid']) {
             return ['success' => false, 'message' => $validation['message']];
         }
         
         // Execute move
-        $this->executeMove($gameId, $playerId, $currentPlayer['current_position'], $toPosition, $transportType, $isHidden, $isDoubleMove);
+        $this->executeMove($gameId, $controlledDetectiveId ?: $playerId, $currentPlayer['current_position'], $toPosition, $transportType, $isHidden, $isDoubleMove);
         
         // Check win conditions
         $winCheck = $this->checkWinConditions($gameId);
@@ -235,6 +248,55 @@ class GameEngine {
         return $mapping[$transportType] ?? null;
     }
     
+    public function canPlayerControlDetective($gameId, $playerId, $detectiveId) {
+        // Get the detective's assignment
+        $detectiveAssignments = $this->db->getDetectiveAssignments($gameId);
+        foreach ($detectiveAssignments as $detective) {
+            if ($detective['id'] == $detectiveId) {
+                // Player can control if assigned OR if it's their own detective
+                // For AI detectives (is_ai is true), only check if assigned
+                if ($detective['is_ai']) {
+                    return $detective['controlled_by_user_id'] == $this->getUserIdForPlayer($playerId);
+                } else {
+                    return $detective['controlled_by_user_id'] == $this->getUserIdForPlayer($playerId) || $detective['id'] == $playerId;
+                }
+            }
+        }
+        return false;
+    }
+    
+    private function getUserIdForPlayer($playerId) {
+        $player = $this->db->getPlayerById($playerId);
+        return $player['user_id'] ?? null;
+    }
+    
+    public function getControlledDetectives($gameId, $playerId) {
+        $detectiveAssignments = $this->db->getDetectiveAssignments($gameId);
+        $controlledDetectives = [];
+        $userId = $this->getUserIdForPlayer($playerId);
+        
+        // Get the player's own detective if they are a detective (but not AI detectives)
+        $player = $this->db->getPlayerById($playerId);
+        if ($player && $player['player_type'] == 'detective' && !$player['is_ai']) {
+            // Find the player's own detective in the assignments
+            foreach ($detectiveAssignments as $detective) {
+                if ($detective['id'] == $playerId) {
+                    $controlledDetectives[] = $detective;
+                    break;
+                }
+            }
+        }
+        
+        // Get additional detectives assigned to this player (including AI detectives)
+        foreach ($detectiveAssignments as $detective) {
+            if ($detective['controlled_by_user_id'] == $userId && $detective['id'] != $playerId) {
+                $controlledDetectives[] = $detective;
+            }
+        }
+        
+        return $controlledDetectives;
+    }
+    
     private function nextTurn($gameId) {
         $game = $this->db->getGame($gameId);
         $players = $this->db->getGamePlayers($gameId);
@@ -315,14 +377,55 @@ class GameEngine {
             return [];
         }
         
+        // Get controlled detectives (including the player's own detective if they are a detective)
+        $controlledDetectives = $this->getControlledDetectives($gameId, $playerId);
+        
+        $allMoves = [];
+        
+        // Get moves for the main player
+        $playerMoves = $this->getMovesForPlayer($player, $players);
+        if (!empty($playerMoves)) {
+            $allMoves[] = [
+                'player_id' => $player['id'],
+                'player_name' => $player['username'],
+                'player_type' => $player['player_type'],
+                'is_main_player' => true,
+                'moves' => $playerMoves
+            ];
+        }
+        
+        // Get moves for controlled detectives (excluding the player's own detective if they are a detective)
+        foreach ($controlledDetectives as $detective) {
+            // Skip if this is the player's own detective (they control it by default)
+            if ($detective['id'] == $playerId) {
+                continue;
+            }
+            
+            $detectiveMoves = $this->getMovesForPlayer($detective, $players);
+            if (!empty($detectiveMoves)) {
+                $isAI = $detective['is_ai'];
+                $allMoves[] = [
+                    'player_id' => $detective['id'],
+                    'player_name' => ($isAI ? 'AI Detective ' : 'Detective ') . $detective['id'] . ' (Controlled)',
+                    'player_type' => $detective['player_type'],
+                    'is_main_player' => false,
+                    'moves' => $detectiveMoves
+                ];
+            }
+        }
+        
+        return $allMoves;
+    }
+    
+    private function getMovesForPlayer($player, $allPlayers) {
         $possibleMoves = $this->db->getPossibleMoves($player['current_position']);
         $validMoves = [];
         
         foreach ($possibleMoves as $move) {
             // Check if destination is occupied by another player of the same type
             $occupied = false;
-            foreach ($players as $p) {
-                if ($p['current_position'] == $move['to_node'] && $p['id'] != $playerId) {
+            foreach ($allPlayers as $p) {
+                if ($p['current_position'] == $move['to_node'] && $p['id'] != $player['id']) {
                     // Allow detectives to move to Mr. X's position
                     if ($player['player_type'] !==  $p['player_type']) {
                         continue; // Allow this move

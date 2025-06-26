@@ -90,41 +90,113 @@ class Database {
     
     // Player management
     public function addPlayerToGame($gameId, $userId, $playerType, $playerOrder) {
-        $stmt = $this->pdo->prepare("INSERT INTO game_players (game_id, user_id, player_type, player_order, taxi_tickets, bus_tickets, underground_tickets, hidden_tickets, double_tickets) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        return $stmt->execute([$gameId, $userId, $playerType, $playerOrder, $this->config['tickets'][$playerType]['taxi'], $this->config['tickets'][$playerType]['bus'], $this->config['tickets'][$playerType]['underground'], $this->config['tickets'][$playerType]['hidden'], $this->config['tickets'][$playerType]['double']]);
+        // First create the player
+        $stmt = $this->pdo->prepare("INSERT INTO game_players (game_id, player_type, player_order, taxi_tickets, bus_tickets, underground_tickets, hidden_tickets, double_tickets, player_name, is_ai) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $playerName = "Player " . time(); // Generate unique name
+        $isAI = 0; // Convert boolean to integer for MySQL
+        $stmt->execute([$gameId, $playerType, $playerOrder, $this->config['tickets'][$playerType]['taxi'], $this->config['tickets'][$playerType]['bus'], $this->config['tickets'][$playerType]['underground'], $this->config['tickets'][$playerType]['hidden'], $this->config['tickets'][$playerType]['double'], $playerName, $isAI]);
+        
+        $playerId = $this->pdo->lastInsertId();
+        
+        // Then create the user mapping
+        $stmt = $this->pdo->prepare("INSERT INTO user_game_mappings (game_id, user_id, player_id, mapping_type) VALUES (?, ?, ?, 'owner')");
+        $stmt->execute([$gameId, $userId, $playerId]);
+        
+        return $playerId;
+    }
+    
+    public function createAIDetective($gameId, $playerOrder) {
+        // Create an AI detective
+        $stmt = $this->pdo->prepare("INSERT INTO game_players (game_id, player_type, player_order, taxi_tickets, bus_tickets, underground_tickets, hidden_tickets, double_tickets, player_name, is_ai) 
+        VALUES (?, 'detective', ?, ?, ?, ?, ?, ?, ?, ?)");
+        $playerName = "AI Detective " . time(); // Generate unique name
+        $isAI = 1; // Convert boolean to integer for MySQL
+        $stmt->execute([$gameId, $playerOrder, $this->config['tickets']['detective']['taxi'], $this->config['tickets']['detective']['bus'], $this->config['tickets']['detective']['underground'], $this->config['tickets']['detective']['hidden'], $this->config['tickets']['detective']['double'], $playerName, $isAI]);
+        
+        return $this->pdo->lastInsertId();
+    }
+    
+    public function getAIDetectives($gameId) {
+        $stmt = $this->pdo->prepare("SELECT * FROM game_players WHERE game_id = ? AND player_type = 'detective' AND is_ai = TRUE");
+        $stmt->execute([$gameId]);
+        return $stmt->fetchAll();
+    }
+    
+    public function getHumanPlayers($gameId) {
+        $stmt = $this->pdo->prepare("
+            SELECT gp.*, 
+                   u.username,
+                   ugm.mapping_type,
+                   ugm.user_id
+            FROM game_players gp 
+            LEFT JOIN user_game_mappings ugm ON gp.id = ugm.player_id AND ugm.mapping_type = 'owner'
+            LEFT JOIN users u ON ugm.user_id = u.id 
+            WHERE gp.game_id = ? AND gp.is_ai = 0
+            ORDER BY gp.player_order
+        ");
+        $stmt->execute([$gameId]);
+        return $stmt->fetchAll();
     }
     
     public function getGamePlayers($gameId) {
         if ($gameId === null) {
-            // Get all players from all games
-            $stmt = $this->pdo->prepare("SELECT gp.*, u.username FROM game_players gp 
-                                        JOIN users u ON gp.user_id = u.id 
-                                        ORDER BY gp.game_id, gp.player_order");
+            // Get all players from all games with user mappings
+            $stmt = $this->pdo->prepare("
+                SELECT gp.*, 
+                       u.username,
+                       ugm.mapping_type,
+                       ugm.user_id
+                FROM game_players gp 
+                LEFT JOIN user_game_mappings ugm ON gp.id = ugm.player_id
+                LEFT JOIN users u ON ugm.user_id = u.id 
+                ORDER BY gp.game_id, gp.player_order
+            ");
             $stmt->execute();
             return $stmt->fetchAll();
         } else {
-            $stmt = $this->pdo->prepare("SELECT gp.*, u.username FROM game_players gp 
-                                        JOIN users u ON gp.user_id = u.id 
-                                        WHERE gp.game_id = ? 
-                                        ORDER BY gp.player_order");
+            $stmt = $this->pdo->prepare("
+                SELECT gp.*, 
+                       u.username,
+                       ugm.mapping_type,
+                       ugm.user_id
+                FROM game_players gp 
+                LEFT JOIN user_game_mappings ugm ON gp.id = ugm.player_id
+                LEFT JOIN users u ON ugm.user_id = u.id 
+                WHERE gp.game_id = ? 
+                ORDER BY gp.player_order
+            ");
             $stmt->execute([$gameId]);
             return $stmt->fetchAll();
         }
     }
     
     public function getPlayerById($playerId) {
-        $stmt = $this->pdo->prepare("SELECT gp.*, u.username FROM game_players gp 
-                                    JOIN users u ON gp.user_id = u.id 
-                                    WHERE gp.id = ?");
+        $stmt = $this->pdo->prepare("
+            SELECT gp.*, 
+                   u.username,
+                   ugm.mapping_type,
+                   ugm.user_id
+            FROM game_players gp 
+            LEFT JOIN user_game_mappings ugm ON gp.id = ugm.player_id
+            LEFT JOIN users u ON ugm.user_id = u.id 
+            WHERE gp.id = ?
+        ");
         $stmt->execute([$playerId]);
         return $stmt->fetch();
     }
     
     public function getCurrentPlayer($gameId) {
-        $stmt = $this->pdo->prepare("SELECT gp.*, u.username FROM game_players gp 
-                                    JOIN users u ON gp.user_id = u.id 
-                                    WHERE gp.game_id = ? AND gp.is_current_turn = 1");
+        $stmt = $this->pdo->prepare("
+            SELECT gp.*, 
+                   u.username,
+                   ugm.mapping_type,
+                   ugm.user_id
+            FROM game_players gp 
+            LEFT JOIN user_game_mappings ugm ON gp.id = ugm.player_id
+            LEFT JOIN users u ON ugm.user_id = u.id 
+            WHERE gp.game_id = ? AND gp.is_current_turn = 1
+        ");
         $stmt->execute([$gameId]);
         return $stmt->fetch();
     }
@@ -142,14 +214,61 @@ class Database {
         $stmt->execute([$position, $playerId]);
     }
     
-    public function updatePlayerType($playerId, $playerType) {
-        $stmt = $this->pdo->prepare("UPDATE game_players SET player_type = ? WHERE id = ?");
-        $stmt->execute([$playerType, $playerId]);
+    public function updatePlayerType($id, $playerType, $byType = 'player') {
+        $whereCol = $byType == 'game'?'game_id':'id';
+        $stmt = $this->pdo->prepare("UPDATE game_players SET player_type = ? WHERE $whereCol = ?");
+        $stmt->execute([$playerType, $id]);
     }
     
     public function updatePlayerOrder($playerId, $playerOrder) {
         $stmt = $this->pdo->prepare("UPDATE game_players SET player_order = ? WHERE id = ?");
         $stmt->execute([$playerOrder, $playerId]);
+    }
+    
+    public function deleteUserPlayerMapping($id, $mappingType, $byType = 'user' ) {
+        $whereCol = $byType != 'player'?'user_id':'player_id';
+        $stmt = $this->pdo->prepare("DELETE FROM user_game_mappings WHERE $whereCol = ? AND mapping_type = ?");
+        $stmt->execute([$id,$mappingType]);
+    }
+
+    public function assignDetectiveToPlayer($detectiveId, $controllingPlayerId) {
+        // First, remove any existing controller mappings for this detective
+        $stmt = $this->pdo->prepare("DELETE FROM user_game_mappings WHERE player_id = ? AND mapping_type = 'controller'");
+        $stmt->execute([$detectiveId]);
+        
+        // Get the user_id of the controlling player
+        $stmt = $this->pdo->prepare("SELECT user_id FROM user_game_mappings WHERE user_id = ? AND mapping_type = 'owner'");
+        $stmt->execute([$controllingPlayerId]);
+        $result = $stmt->fetch();
+
+        $stmt = $this->pdo->prepare("SELECT player_id FROM user_game_mappings WHERE player_id = ? AND mapping_type = 'owner'");
+        $stmt->execute([$detectiveId]);
+        $resultPlayer = $stmt->fetch();
+        
+        if ($result && !$resultPlayer) {
+            // Create new controller mapping
+            $stmt = $this->pdo->prepare("INSERT INTO user_game_mappings (game_id, user_id, player_id, mapping_type) VALUES ((SELECT game_id FROM game_players WHERE id = ?), ?, ?, 'controller')");
+            $stmt->execute([$detectiveId, $result['user_id'], $detectiveId]);
+        }
+    }
+    
+    public function getDetectiveAssignments($gameId) {
+        $stmt = $this->pdo->prepare("
+            SELECT gp.*, 
+                   u.username,
+                   ugm.mapping_type,
+                   ugm.user_id,
+                   controller_ugm.user_id as controlled_by_user_id,
+                   controller_u.username as controlled_by_username
+            FROM game_players gp 
+            LEFT JOIN user_game_mappings ugm ON gp.id = ugm.player_id 
+            LEFT JOIN users u ON ugm.user_id = u.id 
+            LEFT JOIN user_game_mappings controller_ugm ON gp.id = controller_ugm.player_id AND controller_ugm.mapping_type = 'controller'
+            LEFT JOIN users controller_u ON controller_ugm.user_id = controller_u.id
+            WHERE gp.game_id = ? AND gp.player_type = 'detective'
+        ");
+        $stmt->execute([$gameId]);
+        return $stmt->fetchAll();
     }
     
     public function updatePlayerTickets($playerId, $ticketType, $count) {
@@ -183,18 +302,20 @@ class Database {
     
     public function getGameMoves($gameId, $roundNumber = null) {
         if ($roundNumber) {
-            $stmt = $this->pdo->prepare("SELECT gm.*, gp.player_type, u.username 
+            $stmt = $this->pdo->prepare("SELECT gm.*, gp.player_type, COALESCE(u.username, CONCAT('AI Detective ', gp.id)) as username 
                                         FROM game_moves gm 
                                         JOIN game_players gp ON gm.player_id = gp.id 
-                                        JOIN users u ON gp.user_id = u.id 
+                                        LEFT JOIN user_game_mappings ugm ON gp.id = ugm.player_id AND ugm.mapping_type = 'owner'
+                                        LEFT JOIN users u ON ugm.user_id = u.id 
                                         WHERE gm.game_id = ? AND gm.round_number = ? 
                                         ORDER BY gm.move_timestamp");
             $stmt->execute([$gameId, $roundNumber]);
         } else {
-            $stmt = $this->pdo->prepare("SELECT gm.*, gp.player_type, u.username 
+            $stmt = $this->pdo->prepare("SELECT gm.*, gp.player_type, COALESCE(u.username, CONCAT('AI Detective ', gp.id)) as username 
                                         FROM game_moves gm 
                                         JOIN game_players gp ON gm.player_id = gp.id 
-                                        JOIN users u ON gp.user_id = u.id 
+                                        LEFT JOIN user_game_mappings ugm ON gp.id = ugm.player_id AND ugm.mapping_type = 'owner'
+                                        LEFT JOIN users u ON ugm.user_id = u.id 
                                         WHERE gm.game_id = ? 
                                         ORDER BY gm.round_number DESC, gm.move_timestamp");
             $stmt->execute([$gameId]);
@@ -245,6 +366,16 @@ class Database {
             $settings[$row['setting_key']] = $row['setting_value'];
         }
         return $settings;
+    }
+
+    public function assignAIDetectiveToUser($aiPlayerId, $userId) {
+        // Set is_ai to 0 (now human-controlled)
+        $stmt = $this->pdo->prepare("UPDATE game_players SET is_ai = 0 WHERE id = ?");
+        $stmt->execute([$aiPlayerId]);
+        // Add owner mapping
+        $player = $this->getPlayerById($aiPlayerId);
+        $stmt = $this->pdo->prepare("INSERT INTO user_game_mappings (game_id, user_id, player_id, mapping_type) VALUES (?, ?, ?, 'owner')");
+        $stmt->execute([$player['game_id'], $userId, $aiPlayerId]);
     }
 }
 ?> 
