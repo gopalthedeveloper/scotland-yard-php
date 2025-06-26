@@ -28,7 +28,7 @@ class GameEngine {
         // Find Mr. X (player_order = 0) and set as first player
         $mrX = null;
         foreach ($players as $player) {
-            if ($player['player_order'] == 0) {
+            if ($player['player_order'] == 0 && $player['player_type'] == 'mr_x') {
                 $mrX = $player;
                 break;
             }
@@ -58,6 +58,7 @@ class GameEngine {
         foreach ($players as $index => $player) {
             $position = $nodeIds[$index];
             $this->db->updatePlayerPosition($player['id'], $position);
+            $this->db->setPlayerInitialTickets($player);
         }
     }
     

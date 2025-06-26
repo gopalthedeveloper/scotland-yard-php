@@ -87,15 +87,14 @@ class Database {
         $stmt = $this->pdo->prepare("UPDATE games SET current_round = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$round, $gameId]);
     }
-    
     // Player management
     public function addPlayerToGame($gameId, $userId, $playerType, $playerOrder) {
         // First create the player
-        $stmt = $this->pdo->prepare("INSERT INTO game_players (game_id, player_type, player_order, taxi_tickets, bus_tickets, underground_tickets, hidden_tickets, double_tickets, player_name, is_ai) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt = $this->pdo->prepare("INSERT INTO game_players (game_id, player_type, player_order, player_name, is_ai) 
+        VALUES (?, ?, ?, ?, ?)");
         $playerName = "Player " . time(); // Generate unique name
         $isAI = 0; // Convert boolean to integer for MySQL
-        $stmt->execute([$gameId, $playerType, $playerOrder, $this->config['tickets'][$playerType]['taxi'], $this->config['tickets'][$playerType]['bus'], $this->config['tickets'][$playerType]['underground'], $this->config['tickets'][$playerType]['hidden'], $this->config['tickets'][$playerType]['double'], $playerName, $isAI]);
+        $stmt->execute([$gameId, $playerType, $playerOrder, $playerName, $isAI]);
         
         $playerId = $this->pdo->lastInsertId();
         
@@ -108,11 +107,11 @@ class Database {
     
     public function createAIDetective($gameId, $playerOrder) {
         // Create an AI detective
-        $stmt = $this->pdo->prepare("INSERT INTO game_players (game_id, player_type, player_order, taxi_tickets, bus_tickets, underground_tickets, hidden_tickets, double_tickets, player_name, is_ai) 
-        VALUES (?, 'detective', ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt = $this->pdo->prepare("INSERT INTO game_players (game_id, player_type, player_order, player_name, is_ai) 
+        VALUES (?, 'detective', ?, ?, ?)");
         $playerName = "AI Detective " . time(); // Generate unique name
         $isAI = 1; // Convert boolean to integer for MySQL
-        $stmt->execute([$gameId, $playerOrder, $this->config['tickets']['detective']['taxi'], $this->config['tickets']['detective']['bus'], $this->config['tickets']['detective']['underground'], $this->config['tickets']['detective']['hidden'], $this->config['tickets']['detective']['double'], $playerName, $isAI]);
+        $stmt->execute([$gameId, $playerOrder, $playerName, $isAI]);
         
         return $this->pdo->lastInsertId();
     }
@@ -366,6 +365,18 @@ class Database {
             $settings[$row['setting_key']] = $row['setting_value'];
         }
         return $settings;
+    }
+
+    public function setPlayerInitialTickets($player) {
+        $stmt = $this->pdo->prepare("UPDATE game_players SET taxi_tickets = ?, bus_tickets = ?, underground_tickets = ?, hidden_tickets = ?, double_tickets = ? WHERE id = ?");
+        $stmt->execute([
+            $this->config['tickets'][$player['player_type']]['taxi'], 
+            $this->config['tickets'][$player['player_type']]['bus'], 
+            $this->config['tickets'][$player['player_type']]['underground'], 
+            $this->config['tickets'][$player['player_type']]['hidden'], 
+            $this->config['tickets'][$player['player_type']]['double'], 
+            $player['id']
+        ]);
     }
 
     public function assignAIDetectiveToUser($aiPlayerId, $userId) {
