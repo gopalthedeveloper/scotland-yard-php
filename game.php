@@ -1632,7 +1632,7 @@ if ($game['status'] == 'waiting') {
         });
 
         // AJAX game state updates
-        let lastUpdateTime = <?= time() ?>;
+        let lastUpdateTime = <?= $gameEngine->getMaxGameTimestamp($gameId) ?>;
         let updateInterval = null;
 
         function startGameUpdates() {
@@ -1656,31 +1656,37 @@ if ($game['status'] == 'waiting') {
             })
             .then(response => response.json())
             .then(data => {
-                if (data.success && lastUpdateTime < data.timestamp && data.has_updates ) {
-                        // Update player positions on the map using pre-rendered HTML
-                        updatePlayerPositions(data.rendered_html.player_positions);
-                        
-                        // Update player sidebar using pre-rendered HTML
-                        updatePlayerSidebar(data.rendered_html.player_sidebar);
-                        
-                        // Update move history using pre-rendered HTML
-                        if (data.rendered_html.move_history) {
-                            updateMoveHistory(data.rendered_html.move_history);
-                        }
-                        
-                        // Update game status if changed
-                        if (data.game_status !== '<?= $game['status'] ?>') {
-                            location.reload(); // Full reload if game status changed
-                            return;
-                        }
-                        
-                        // Check if it's now the user's turn
-                        if (data.is_user_turn && !<?= $canMakeMove ? 'true' : 'false' ?>) {
-                            location.reload(); // Reload to show move interface
-                            return;
-                        }
-                        
-                        lastUpdateTime = data.timestamp;
+                if (data.success && data.has_updates) {
+                    console.log('AJAX Update - Changes detected at timestamp:', data.timestamp);
+                    
+                    // Update player positions on the map using pre-rendered HTML
+                    updatePlayerPositions(data.rendered_html.player_positions);
+                    
+                    // Update player sidebar using pre-rendered HTML
+                    updatePlayerSidebar(data.rendered_html.player_sidebar);
+                    
+                    // Update move history using pre-rendered HTML
+                    if (data.rendered_html.move_history) {
+                        updateMoveHistory(data.rendered_html.move_history);
+                    }
+                    
+                    // Update game status if changed
+                    if (data.game_status !== '<?= $game['status'] ?>') {
+                        location.reload(); // Full reload if game status changed
+                        return;
+                    }
+                    
+                    // Check if it's now the user's turn
+                    if (data.is_user_turn && !<?= $canMakeMove ? 'true' : 'false' ?>) {
+                        location.reload(); // Reload to show move interface
+                        return;
+                    }
+                    
+                    // Update the last update timestamp
+                    lastUpdateTime = data.timestamp;
+                } else if (data.success) {
+                    // No updates, but update timestamp to prevent unnecessary requests
+                    lastUpdateTime = data.timestamp;
                 }
             })
             .catch(error => {

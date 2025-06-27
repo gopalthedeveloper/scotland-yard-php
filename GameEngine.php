@@ -429,5 +429,38 @@ class GameEngine {
         
         return $state;
     }
+    
+    /**
+     * Get the maximum timestamp from all game-related tables
+     * Used for efficient AJAX change detection
+     */
+    public function getMaxGameTimestamp($gameId) {
+        $maxTimestamp = 0;
+        
+        // Get latest game update timestamp
+        $game = $this->db->getGame($gameId);
+        if ($game && $game['updated_at']) {
+            $gameTimestamp = strtotime($game['updated_at']);
+            $maxTimestamp = max($maxTimestamp, $gameTimestamp);
+        }
+        
+        // Get latest player update timestamp
+        $playerTimestamp = $this->db->getMaxPlayerUpdateTimestamp($gameId);
+        $maxTimestamp = max($maxTimestamp, $playerTimestamp);
+        
+        // Get latest move timestamp
+        $moveTimestamp = $this->db->getMaxMoveTimestamp($gameId);
+        $maxTimestamp = max($maxTimestamp, $moveTimestamp);
+        
+        return $maxTimestamp;
+    }
+    
+    /**
+     * Check if there are any updates since the last check
+     */
+    public function hasGameUpdates($gameId, $lastUpdate) {
+        $maxTimestamp = $this->getMaxGameTimestamp($gameId);
+        return $maxTimestamp > $lastUpdate;
+    }
 }
 ?> 

@@ -409,5 +409,25 @@ class Database {
         $stmt = $this->pdo->prepare("DELETE FROM user_game_mappings WHERE player_id = ?");
         $stmt->execute([$playerId]);
     }
+    
+    /**
+     * Get the maximum updated_at timestamp from game_players table for a specific game
+     */
+    public function getMaxPlayerUpdateTimestamp($gameId) {
+        $stmt = $this->pdo->prepare("SELECT MAX(updated_at) as max_player_update FROM game_players WHERE game_id = ?");
+        $stmt->execute([$gameId]);
+        $result = $stmt->fetch();
+        return $result && $result['max_player_update'] ? strtotime($result['max_player_update']) : 0;
+    }
+    
+    /**
+     * Get the maximum move_timestamp from game_moves table for a specific game
+     */
+    public function getMaxMoveTimestamp($gameId) {
+        $stmt = $this->pdo->prepare("SELECT MAX(move_timestamp) as max_move_timestamp FROM game_moves WHERE game_id = ?");
+        $stmt->execute([$gameId]);
+        $result = $stmt->fetch();
+        return $result && $result['max_move_timestamp'] ? strtotime($result['max_move_timestamp']) : 0;
+    }
 }
 ?> 

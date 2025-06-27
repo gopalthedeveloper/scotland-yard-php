@@ -28,102 +28,95 @@ if (!$gameId) {
     exit();
 }
 
-try {
-    $db = new Database();
-    $gameEngine = new GameEngine();
-    $gameRenders = new GameRenders();
-    
-    // Get current game state
-    $game = $db->getGame($gameId);
-    if (!$game) {
-        echo json_encode(['success' => false, 'message' => 'Game not found']);
-        exit();
-    }
-    
-    // Get current players
-    $players = $db->getGamePlayers($gameId);
-    $currentPlayer = $db->getCurrentPlayer($gameId);
-    
-    // Get user player
-    $userPlayer = $gameRenders->getUserPlayer($players);
-    
-    if (!$userPlayer) {
-        echo json_encode(['success' => false, 'message' => 'User not in game']);
-        exit();
-    }
-    
-    // Check if there are any updates since last check
-    $hasUpdates = false;
-    
-    // Check if game status changed
-    if ($game['updated_at'] > $lastUpdate) {
-        $hasUpdates = true;
-    }
-    
-    // Check if any moves were made since last update
-    $recentMoves = $db->getGameMoves($gameId);
-    $newMoves = [];
-    foreach ($recentMoves as $move) {
-        if (strtotime($move['move_timestamp']) > $lastUpdate) {
-            $newMoves[] = $move;
-            $hasUpdates = true;
-        }
-    }
-    
-    // Check if it's now the user's turn
-    $isUserTurn = false;
-    if ($currentPlayer) {
-        if ($currentPlayer['id'] == $userPlayer['id']) {
-            $isUserTurn = true;
-        } elseif ($currentPlayer['is_ai'] && $currentPlayer['user_id'] == $_SESSION['user_id']) {
-            $isUserTurn = true;
-        }
-    }
-    
-    // Use GameRenders to generate HTML using the new template system
-    $playerPositionsHtml = $gameRenders->renderHtmlTemplate('player_positions', [
-        'players' => $players,
-        'currentPlayer' => $currentPlayer,
-        'game' => $game,
-        'userPlayer' => $userPlayer,
-        'boardNodes' =>  $db->getBoardNodes()
-    ]);
-    
-    $playerSidebarHtml = $gameRenders->renderHtmlTemplate('player_sidebar', [
-        'players' => $players,
-        'currentPlayer' => $currentPlayer,
-        'userPlayer' => $userPlayer
-    ]);
-    
-    $moveHistoryHtml = $gameRenders->renderHtmlTemplate('move_history', [
-        'gameId' => $gameId,
-        'players' => $players,
-        'game' => $game,
-        'userPlayer' => $userPlayer,
-        'moves' => $db->getGameMoves($gameId)
-    ]);
-    // Prepare response data
+$db = new Database();
+$gameEngine = new GameEngine();
+$gameRenders = new GameRenders();
+
+// Get current game state
+$game = $db->getGame($gameId);
+
+if (!$game) {
+    http_response_code(404);
+    echo json_encode(['success' => false, 'message' => 'Game not found']);
+    exit();
+}
+
+// Get the maximum timestamp from all relevant tables using GameEngine
+$maxTimestamp = $gameEngine->getMaxGameTimestamp($gameId);
+
+// Check if there are any updates since last check
+$hasUpdates = $gameEngine->hasGameUpdates($gameId, $lastUpdate);
+
+if (!$hasUpdates) {
+    // No updates, return minimal response
     $response = [
         'success' => true,
-        'has_updates' => $hasUpdates,
-        'timestamp' => time(),
-        'game_status' => $game['status'],
-        'current_round' => $game['current_round'],
-        'is_user_turn' => $isUserTurn,
-        'rendered_html' => [
-            'player_positions' => $playerPositionsHtml,
-            'player_sidebar' => $playerSidebarHtml,
-            'move_history' => $moveHistoryHtml
-        ],
-        'current_player_id' => $currentPlayer ? $currentPlayer['id'] : null
+        'timestamp' => $maxTimestamp,
+        'has_updates' => false
     ];
     
-    // Set JSON header
     header('Content-Type: application/json');
     echo json_encode($response);
-    
-} catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+    exit();
 }
+
+
+$players = $db->getGamePlayers($gameId);
+$currentPlayer = $db->getCurrentPlayer($gameId);
+$userPlayer = $gameRenders->getUserPlayer($players);
+
+// There are updates, process the data
+$isUserTurn = false;
+if ($userPlayer && $currentPlayer) {
+    // Check if current player is the user's player
+    if ($currentPlayer['id'] == $userPlayer['id']) {
+        $isUserTurn = true;
+    }
+    // Check if current player is an AI detective controlled by the user
+    elseif ($currentPlayer['is_ai'] && $currentPlayer['user_id'] == $_SESSION['user_id']) {
+        $isUserTurn = true;
+    }
+}
+
+// Use GameRenders to generate HTML using the new template system
+$playerPositionsHtml = $gameRenders->renderHtmlTemplate('player_positions', [
+    'players' => $players,
+    'currentPlayer' => $currentPlayer,
+    'game' => $game,
+    'userPlayer' => $userPlayer,
+    'boardNodes' =>  $db->getBoardNodes()
+]);
+
+$playerSidebarHtml = $gameRenders->renderHtmlTemplate('player_sidebar', [
+    'players' => $players,
+    'currentPlayer' => $currentPlayer,
+    'userPlayer' => $userPlayer
+]);
+
+$moveHistoryHtml = $gameRenders->renderHtmlTemplate('move_history', [
+    'gameId' => $gameId,
+    'players' => $players,
+    'game' => $game,
+    'userPlayer' => $userPlayer,
+    'moves' => $db->getGameMoves($gameId)
+]);
+
+// Prepare response data
+$response = [
+    'success' => true,
+    'timestamp' => $maxTimestamp,
+    'has_updates' => true,
+    'game_status' => $game['status'],
+    'current_round' => $game['current_round'],
+    'is_user_turn' => $isUserTurn,
+    'rendered_html' => [
+        'player_positions' => $playerPositionsHtml,
+        'player_sidebar' => $playerSidebarHtml,
+        'move_history' => $moveHistoryHtml
+    ],
+    'current_player_id' => $currentPlayer ? $currentPlayer['id'] : null
+];
+
+header('Content-Type: application/json');
+echo json_encode($response);
 ?> 
