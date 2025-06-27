@@ -22,7 +22,7 @@
     position: relative;
     width: 2570px;
     height: 1926px;
-    background-image: url('map-tk.webp');
+    background-image: url('../images/map-tk.webp');
     background-color: #f0f0f0; /* Fallback color */
     transform: scale(0.6);
     transform-origin: top left;

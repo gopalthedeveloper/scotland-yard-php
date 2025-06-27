@@ -13,10 +13,12 @@ $user = $user ?? null;
 
 // Get current user if not provided
 if (!$user && isset($_SESSION['user_id'])) {
-    require_once 'Database.php';
+    require_once 'model/Database.php';
     $db = new Database();
     $user = $db->getUserById($_SESSION['user_id']);
 }
+
+require_once 'model/config.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -25,10 +27,10 @@ if (!$user && isset($_SESSION['user_id'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($pageTitle) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="custom.css" rel="stylesheet">
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link href="assets/css/custom.css" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="assets/images/favicon.svg">
     <?php if ($includeGameCSS): ?>
-    <link rel="stylesheet" href="game.css">
+    <link rel="stylesheet" href="assets/css/game.css">
     <?php endif; ?>
     <style>
         /* Sticky Footer Layout */
@@ -58,7 +60,7 @@ if (!$user && isset($_SESSION['user_id'])) {
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark header">
     <div class="container">
         <a class="navbar-brand" href="index.php">
-          <img src="logo.svg" alt="Scotland Yard" height="30" class="d-inline-block align-text-top me-2">
+          <img src="assets/images/logo.svg" alt="Scotland Yard" height="30" class="d-inline-block align-text-top me-2">
         </a>
         <div class="navbar-nav ms-auto">
             <?php if ($showNavbar && $user): ?>

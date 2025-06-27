@@ -1,8 +1,8 @@
 <?php
-require_once 'config.php';
-require_once 'Database.php';
-require_once 'GameEngine.php';
-require_once 'GameRenders.php';
+require_once 'model/config.php';
+require_once 'model/Database.php';
+require_once 'model/GameEngine.php';
+require_once 'model/GameRenders.php';
 
 $db = new Database();
 $gameEngine = new GameEngine();
@@ -314,7 +314,7 @@ $pageTitle = 'Scotland Yard - ' . htmlspecialchars($game['game_name']);
 $includeGameCSS = true;
 
 // Include header
-include 'header.php';
+require_once 'views/layouts/header.php';
 ?>
 
 <div class="container-fluid mt-4">
@@ -1235,7 +1235,7 @@ ob_start();
     }
 
     function checkGameUpdates() {
-        fetch('ajax_game_updates.php', {
+        fetch('controller/ajax_game_updates.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -1333,5 +1333,5 @@ $includeCustomJS = ob_get_contents();
 ob_end_clean();
 
 // Include footer
-include 'footer.php';
+include 'views/layouts/footer.php';
 ?> 

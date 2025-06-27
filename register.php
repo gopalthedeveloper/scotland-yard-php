@@ -1,6 +1,6 @@
 <?php
-require_once 'config.php';
-require_once 'Database.php';
+require_once 'model/config.php';
+require_once 'model/Database.php';
 
 $error = '';
 $success = '';
@@ -55,7 +55,7 @@ $includeGameCSS = false;
 $showNavbar = false;
 
 // Include header
-include 'header.php';
+include 'views/layouts/header.php';
 ?>
 
 <div class="register-container">
@@ -113,5 +113,5 @@ include 'header.php';
 
 <?php
 // Include footer
-include 'footer.php';
+include 'views/layouts/footer.php';
 ?> 

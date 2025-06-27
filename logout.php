@@ -1,5 +1,5 @@
 <?php
-require_once 'config.php';
+require_once 'model/config.php';
 
 // Destroy session
 session_destroy();

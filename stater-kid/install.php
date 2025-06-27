@@ -108,6 +108,7 @@ echo "\n";
 echo "Testing database connection...\n";
 try {
     require_once 'config.php';
+    require_once 'model/Database.php';
     $pdo = new PDO(
         "mysql:host=" . DB_HOST . ";charset=utf8mb4",
         DB_USER,

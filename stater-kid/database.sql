@@ -1,7 +1,6 @@
 -- Database schema for Scotland Yard PHP game
 
-CREATE DATABASE IF NOT EXISTS scotland_yard;
-USE scotland_yard;
+
 
 -- Users table
 CREATE TABLE users (
@@ -46,7 +45,7 @@ CREATE TABLE game_players (
     player_name VARCHAR(100) NOT NULL,
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
 );
 
 -- User game mappings table (new normalized structure)

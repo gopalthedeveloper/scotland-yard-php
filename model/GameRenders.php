@@ -41,7 +41,7 @@ class GameRenders {
         ob_start();
         
         // Include the template file
-        $templatePath = "templates/{$templateName}.php";
+        $templatePath = "views/templates/{$templateName}.php";
         if (file_exists($templatePath)) {
             include $templatePath;
         } else {

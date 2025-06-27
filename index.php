@@ -1,7 +1,7 @@
 <?php
-require_once 'config.php';
-require_once 'Database.php';
-require_once 'GameEngine.php';
+require_once 'model/config.php';
+require_once 'model/Database.php';
+require_once 'model/GameEngine.php';
 
 $db = new Database();
 $gameEngine = new GameEngine();
@@ -21,7 +21,7 @@ $pageClass = 'page-index';
 $includeGameCSS = false;
 
 // Include header
-include 'header.php';
+include 'views/layouts/header.php';
 ?>
 
 <div class="container mt-4">
@@ -98,20 +98,20 @@ include 'header.php';
                 <div class="card-body">
                     <h6>Objective</h6>
                     <p><strong>Detectives:</strong> Work together to catch Mr. X<br>
-                    <strong>Mr. X:</strong> Evade capture for 24 rounds</p>
+                    <strong>Mr. X:</strong> Evade capture for <?= GAME_CONFIG['max_rounds'] ?> rounds</p>
                     
                     <h6>Transportation</h6>
                     <ul class="list-unstyled">
-                        <li><strong>T:</strong> Taxi (11 tickets)</li>
-                        <li><strong>B:</strong> Bus (8 tickets)</li>
-                        <li><strong>U:</strong> Underground (4 tickets)</li>
-                        <li><strong>X:</strong> Hidden moves (5 tickets, Mr. X only)</li>
-                        <li><strong>2:</strong> Double moves (2 tickets, Mr. X only)</li>
+                        <li><strong>T:</strong> Taxi (<?= GAME_CONFIG['tickets']['detective']['taxi'] ?> tickets, detectives), (<?= GAME_CONFIG['tickets']['mr_x']['taxi'] ?> tickets, Mr. X)</li>
+                        <li><strong>B:</strong> Bus (<?= GAME_CONFIG['tickets']['detective']['bus'] ?> tickets, detectives), (<?= GAME_CONFIG['tickets']['mr_x']['bus'] ?> tickets, Mr. X)</li>
+                        <li><strong>U:</strong> Underground (<?= GAME_CONFIG['tickets']['detective']['underground'] ?> tickets, detectives), (<?= GAME_CONFIG['tickets']['mr_x']['underground'] ?> tickets, Mr. X)</li>
+                        <li><strong>X:</strong> Hidden moves (<?= GAME_CONFIG['tickets']['mr_x']['hidden'] ?> tickets, Mr. X only)</li>
+                        <li><strong>2:</strong> Double moves (<?= GAME_CONFIG['tickets']['mr_x']['double'] ?> tickets, Mr. X only)</li>
                     </ul>
                     
                     <h6>Special Rules</h6>
                     <ul>
-                        <li>Mr. X's position is revealed on rounds 3, 8, 13, 18, 23, 28, 33, 38</li>
+                        <li>Mr. X's position is revealed on rounds <?= implode(', ', GAME_CONFIG['reveal_rounds']) ?></li>
                         <li>Mr. X uses QR codes to keep moves secret</li>
                         <li>Detectives can see each other's positions</li>
                     </ul>
@@ -123,5 +123,5 @@ include 'header.php';
 
 <?php
 // Include footer
-include 'footer.php';
+include 'views/layouts/footer.php';
 ?> 

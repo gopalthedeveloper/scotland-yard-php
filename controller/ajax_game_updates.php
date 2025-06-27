@@ -1,8 +1,8 @@
 <?php
-require_once 'config.php';
-require_once 'Database.php';
-require_once 'GameEngine.php';
-require_once 'GameRenders.php';
+require_once 'model/config.php';
+require_once 'model/Database.php';
+require_once 'model/GameEngine.php';
+require_once 'model/GameRenders.php';
 
 
 // Check if user is logged in
