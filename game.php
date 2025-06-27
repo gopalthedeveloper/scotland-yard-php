@@ -1198,8 +1198,78 @@ if ($game['status'] == 'waiting') {
                                             </li>
                                         <?php endforeach; ?>
                                     </ul>
-                                <?php endif;
+                                <?php endif;?>
+                                <?php
+                                if (!empty($moves)):
+                                    // Group moves by round
+                                    $movesByRound = [];
+                                    foreach ($moves as $move) {
+                                        $round = $move['round_number'];
+                                        if (!isset($movesByRound[$round])) {
+                                            $movesByRound[$round] = [];
+                                        }
+                                        $movesByRound[$round][] = $move;
+                                    }
+                                    
+                                    // Display moves by round (newest first)
+                                    foreach (array_reverse($movesByRound, true) as $round => $roundMoves):
                                 ?>
+                                    <ul>
+                                        <li class="rounds">R<?= $round ?></li>
+                                        <?php 
+                                        // Find moves for each player in this round
+                                        $playerMoves = [];
+                                        foreach ($roundMoves as $move) {
+                                            $playerIndex = array_search($move['player_id'], array_column($players, 'id'));
+                                            if ($playerIndex !== false) {
+                                                if (!isset($playerMoves[$playerIndex])) {
+                                                    $playerMoves[$playerIndex] = [];
+                                                }
+                                                $playerMoves[$playerIndex][] = $move;
+                                            }
+                                        }
+                                        
+                                        foreach ($players as $index => $player): 
+                                            $pMoves = $playerMoves[$index] ?? [];
+                                            $move = array_shift($pMoves);
+
+                                            if(false){
+                                                doubleMove:
+                                                $move = array_shift($pMoves);
+                                                ?>
+                                                </ul>
+                                                <ul>
+                                                    <li class="rounds">R<?= $round ?></li>
+                                            <?php
+                                            } 
+                                            if ($move): ?>
+                                                <?php
+                                                $transportType = $move['transport_type'];
+                                                $showMove = true;
+                                                
+                                                // Hide Mr. X moves unless it's a reveal round or game is finished
+                                                if ($player['player_type'] == 'mr_x' && $game['status'] == 'active' && !$isUserMrX) {
+                                                    $showMove = in_array($round, [3, 8, 13, 18, 23, 28, 33, 38]) || $game['status'] == 'finished';
+                                                }
+                                                $transportType = $move['is_hidden']? 'X':$move['transport_type'];
+
+                                                $moveText = $showMove ? $transportType . '.' . $move['to_position'] :$transportType . '.--';
+                                                
+                                                ?>
+                                                <li class="moves m_<?= $transportType ?>">
+                                                    <?= $moveText ?>
+                                                </li>
+                                            <?php endif; 
+                                            if(count($pMoves) > 0){
+                                                goto doubleMove;
+                                            }
+                                            ?>
+
+                                        <?php endforeach; ?>
+                                    </ul>
+                                <?php 
+                                    endforeach;
+                                endif; ?>
                             </div>
                         </div>
 
