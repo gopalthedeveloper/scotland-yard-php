@@ -44,10 +44,8 @@ CREATE TABLE game_players (
     is_current_turn BOOLEAN DEFAULT FALSE,
     is_ai BOOLEAN DEFAULT FALSE,
     player_name VARCHAR(100) NOT NULL,
-    controlled_by_user_id INT NULL,
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
-    FOREIGN KEY (controlled_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- User game mappings table (new normalized structure)

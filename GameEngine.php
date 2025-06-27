@@ -63,25 +63,12 @@ class GameEngine {
     }
     
     // Move validation and execution
-    public function makeMove($gameId, $playerId, $toPosition, $transportType, $isHidden = false, $isDoubleMove = false, $controlledDetectiveId = null) {
+    public function makeMove($gameId, $playerId, $toPosition, $transportType, $isHidden = false, $isDoubleMove = false) {
         $game = $this->db->getGame($gameId);
         $currentPlayer = $this->db->getCurrentPlayer($gameId);
         
-        // If controlling a detective, validate the assignment
-        if ($controlledDetectiveId) {
-            if (!$this->canPlayerControlDetective($gameId, $playerId, $controlledDetectiveId)) {
-                return ['success' => false, 'message' => 'You cannot control this detective'];
-            }
-            // Use the detective's data for the move
-            $detectivePlayer = $this->db->getPlayerById($controlledDetectiveId);
-            if (!$detectivePlayer) {
-                return ['success' => false, 'message' => 'Detective not found'];
-            }
-            $currentPlayer = $detectivePlayer;
-        }
-        
         // Validate it's the player's turn
-        if ($currentPlayer['id'] != $playerId && !$controlledDetectiveId) {
+        if ($currentPlayer['id'] != $playerId || $currentPlayer['user_id'] != $_SESSION['user_id']) {
             return ['success' => false, 'message' => 'Not your turn'];
         }
         
@@ -97,15 +84,13 @@ class GameEngine {
                 return ['success' => false, 'message' => 'Double move already used this round'];
             }
         }
-        
         // Validate move
-        $validation = $this->validateMove($controlledDetectiveId ?: $playerId, $currentPlayer['current_position'], $toPosition, $transportType, $isHidden, $isDoubleMove);
+        $validation = $this->validateMove( $playerId, $currentPlayer['current_position'], $toPosition, $transportType, $isHidden, $isDoubleMove);
         if (!$validation['valid']) {
             return ['success' => false, 'message' => $validation['message']];
-        }
-        
+        }  
         // Execute move
-        $this->executeMove($gameId, $controlledDetectiveId ?: $playerId, $currentPlayer['current_position'], $toPosition, $transportType, $isHidden, $isDoubleMove);
+        $this->executeMove($gameId, $playerId, $currentPlayer['current_position'], $toPosition, $transportType, $isHidden, $isDoubleMove);
         
         // Check win conditions
         $winCheck = $this->checkWinConditions($gameId);
@@ -385,37 +370,8 @@ class GameEngine {
         
         // Get moves for the main player
         $playerMoves = $this->getMovesForPlayer($player, $players);
-        if (!empty($playerMoves)) {
-            $allMoves[] = [
-                'player_id' => $player['id'],
-                'player_name' => $player['username'],
-                'player_type' => $player['player_type'],
-                'is_main_player' => true,
-                'moves' => $playerMoves
-            ];
-        }
         
-        // Get moves for controlled detectives (excluding the player's own detective if they are a detective)
-        foreach ($controlledDetectives as $detective) {
-            // Skip if this is the player's own detective (they control it by default)
-            if ($detective['id'] == $playerId) {
-                continue;
-            }
-            
-            $detectiveMoves = $this->getMovesForPlayer($detective, $players);
-            if (!empty($detectiveMoves)) {
-                $isAI = $detective['is_ai'];
-                $allMoves[] = [
-                    'player_id' => $detective['id'],
-                    'player_name' => ($isAI ? 'AI Detective ' : 'Detective ') . $detective['id'] . ' (Controlled)',
-                    'player_type' => $detective['player_type'],
-                    'is_main_player' => false,
-                    'moves' => $detectiveMoves
-                ];
-            }
-        }
-        
-        return $allMoves;
+        return $playerMoves;
     }
     
     private function getMovesForPlayer($player, $allPlayers) {
@@ -472,38 +428,6 @@ class GameEngine {
         ];
         
         return $state;
-    }
-    
-    // Generate QR code data for Mr. X moves
-    public function generateQRData($gameId, $playerId) {
-        $player = null;
-        $players = $this->db->getGamePlayers($gameId);
-        foreach ($players as $p) {
-            if ($p['id'] == $playerId) {
-                $player = $p;
-                break;
-            }
-        }
-        
-        if (!$player || $player['player_type'] !== 'mr_x') {
-            return null;
-        }
-        
-        $possibleMoves = $this->getPossibleMovesForPlayer($gameId, $playerId);
-        
-        // Generate QR data
-        $qrData = "Position: " . $player['current_position'] . "\n";
-        $qrData .= "Tickets: T:" . $player['taxi_tickets'] . " B:" . $player['bus_tickets'] . " U:" . $player['underground_tickets'] . " X:" . $player['hidden_tickets'] . " 2:" . $player['double_tickets'] . "\n";
-        
-        // Add possible moves with letters
-        $letters = range('A', 'Z');
-        foreach ($possibleMoves as $index => $move) {
-            if ($index < count($letters)) {
-                $qrData .= $letters[$index] . "=" . $move['transport_type'] . $move['to_position'] . "\n";
-            }
-        }
-        
-        return $qrData;
     }
 }
 ?> 
