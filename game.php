@@ -2,9 +2,11 @@
 require_once 'config.php';
 require_once 'Database.php';
 require_once 'GameEngine.php';
+require_once 'GameRenders.php';
 
 $db = new Database();
 $gameEngine = new GameEngine();
+$gameRenders = new GameRenders();
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
@@ -29,27 +31,12 @@ $players = $db->getGamePlayers($gameId);
 $humanPlayers = $db->getHumanPlayers($gameId);
 $currentPlayer = $db->getCurrentPlayer($gameId);
 
-// Check if user is in this game
-$userInGame = false;
-$userPlayer = null;
-foreach ($players as $player) {
-    if ($player['user_id'] == $_SESSION['user_id'] && $player['mapping_type'] == 'owner') {
-        $userInGame = true;
-        $userPlayer = $player;
-        break;
-    }
-}
 
-// Also check if user controls any AI detectives
-if (!$userInGame) {
-    foreach ($players as $player) {
-        if ($player['is_ai'] && $player['controlled_by_user_id'] == $_SESSION['user_id']) {
-            $userInGame = true;
-            $userPlayer = $player;
-            break;
-        }
-    }
-}
+$userPlayer = $gameRenders->getUserPlayer($players);
+// Check if user is in this game
+$userInGame = $userPlayer?true:false;
+
+
 // Check if Mr. X is assigned
 $mrXAssigned = false;
 foreach ($players as $player) {
@@ -172,7 +159,7 @@ if ($game['status'] == 'active' && $userInGame && isset($_POST['make_move'])) {
     }
 
     if ($toPosition && $transportType) {
-        $result = $gameEngine->makeMove($gameId, $playerMakingMove['id'], $toPosition, $transportType, $isHidden, $isDoubleMove);
+        $result = $gameEngine->makeMove($gameId,$_SESSION['user_id'], $playerMakingMove['id'], $toPosition, $transportType, $isHidden, $isDoubleMove);
         if ($result['success']) {
             header("Location: game.php?id=$gameId");
             exit();
@@ -684,6 +671,7 @@ if ($game['status'] == 'waiting') {
             margin-bottom: 15px;
             font-size: 1.5rem;
             position: relative;
+            text-align: left;
         }
 
         .player.highlighted {
@@ -1095,7 +1083,7 @@ if ($game['status'] == 'waiting') {
                                     $showPlayer = true;
                                     if ($player['player_type'] == 'mr_x' && $game['status'] == 'active') {
                                         $showPlayer = ($userPlayer && $userPlayer['player_type'] == 'mr_x') || 
-                                                    in_array($game['current_round'], [3, 8, 13, 18, 23, 28, 33, 38]) || 
+                                                    in_array($game['current_round'], GAME_CONFIG['reveal_rounds']) || 
                                                     $game['status'] == 'finished';
                                     }
                                     ?>
@@ -1122,28 +1110,19 @@ if ($game['status'] == 'waiting') {
             if ($game['status'] == 'active' || $game['status'] == 'finished'): ?>
             <div class="board-sidebar">
                 <div id="play">
-                    <h1>SSY - <?= htmlspecialchars($game['game_name']) ?>
+                    <h1><?= htmlspecialchars($game['game_name']) ?>
                         <button class="minimize-btn" id="minimize-btn" title="Minimize/Maximize">−</button>
                     </h1>
                     
                     <!-- Player Positions -->
                     <div id="playerpos">
-                        <?php foreach ($players as $index => $player): ?>
-                            <p id="pos<?= $index ?>" class="<?= ($currentPlayer['id'] == $player['id']) ? 'cur' : '' ?>">
-                                <svg viewBox="<?= explode('|', $playerIcons[$index])[0] ?>">
-                                    <?= explode('|', $playerIcons[$index])[1] ?>
-                                    <use href="#i-p<?= $index ?>"/>
-                                </svg>
-                                <?= htmlspecialchars($player['username']) ?>
-                                <b>
-                                    <?php if($player['player_type'] != 'mr_x' || $isUserMrX): ?>
-                                        <?= $player['current_position'] ?: '0' ?>
-                                    <?php else: ?>
-                                        --
-                                    <?php endif; ?>
-                                </b>
-                            </p>
-                        <?php endforeach; ?>
+                        <?= $gameRenders->renderHtmlTemplate('player_sidebar', [
+                            'players' => $players,
+                            'currentPlayer' => $currentPlayer,
+                            'game' => $game,
+                            'userPlayer' => $userPlayer,
+                            'boardNodes' =>  $boardNodes
+                        ]);?>
                     </div>
 
                     <!-- Move List -->
@@ -1153,123 +1132,14 @@ if ($game['status'] == 'waiting') {
                                 <button class="moves-minimize-btn" id="moves-minimize-btn" title="Minimize/Maximize">−</button>
                             </h4>
                             <div id="movetbl">
-                                <ul>
-                                    <li class="rounds"></li>
-                                    <?php foreach ($players as $index => $player): ?>
-                                        <li class="moves">
-                                            <svg viewBox="<?= explode('|', $playerIcons[$index])[0] ?>">
-                                                <?= explode('|', $playerIcons[$index])[1] ?>
-                                                <use href="#i-p<?= $index ?>"/>
-                                            </svg>
-                                        </li>
-                                    <?php endforeach; ?>
-                                </ul>
-                                <?php
-                                $moves = $db->getGameMoves($gameId);
-                                
-                                // Get initial positions from database (round 1 moves)
-                                $initialMoves = [];
-                                if (!empty($moves)) {
-                                    foreach ($moves as $move) {
-                                        if ($move['round_number'] == 1) {
-                                            $playerIndex = array_search($move['player_id'], array_column($players, 'id'));
-                                            if ($playerIndex !== false) {
-                                                $initialMoves[$playerIndex] = $move;
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                // Always show initial positions (round 1)
-                                if ($game['status'] == 'active' || $game['status'] == 'finished'):
+                                <?=$gameRenders->renderHtmlTemplate('move_history', [
+                                        'gameId' => $gameId,
+                                        'players' => $players,
+                                        'game' => $game,
+                                        'userPlayer' => $userPlayer,
+                                        'moves' => $db->getGameMoves($gameId)
+                                    ]);
                                 ?>
-                                    <ul>
-                                        <li class="rounds">R.i</li>
-                                        <?php foreach ($players as $index => $player): 
-                                            $initialMove = $initialMoves[$index] ?? null;
-                                            if($player['player_type'] != 'mr_x' || $isUserMrX){
-                                                $iniatialPosition = $initialMove ? $initialMove['from_position'] : $player['current_position'];
-                                            } else {    
-                                                $iniatialPosition = '--';
-                                            }
-                                        ?>
-                                            <li class="moves m_.">
-                                                .<?= $iniatialPosition ?>
-                                            </li>
-                                        <?php endforeach; ?>
-                                    </ul>
-                                <?php endif;?>
-                                <?php
-                                if (!empty($moves)):
-                                    // Group moves by round
-                                    $movesByRound = [];
-                                    foreach ($moves as $move) {
-                                        $round = $move['round_number'];
-                                        if (!isset($movesByRound[$round])) {
-                                            $movesByRound[$round] = [];
-                                        }
-                                        $movesByRound[$round][] = $move;
-                                    }
-                                    
-                                    // Display moves by round (newest first)
-                                    foreach (array_reverse($movesByRound, true) as $round => $roundMoves):
-                                ?>
-                                    <ul>
-                                        <li class="rounds">R<?= $round ?></li>
-                                        <?php 
-                                        // Find moves for each player in this round
-                                        $playerMoves = [];
-                                        foreach ($roundMoves as $move) {
-                                            $playerIndex = array_search($move['player_id'], array_column($players, 'id'));
-                                            if ($playerIndex !== false) {
-                                                if (!isset($playerMoves[$playerIndex])) {
-                                                    $playerMoves[$playerIndex] = [];
-                                                }
-                                                $playerMoves[$playerIndex][] = $move;
-                                            }
-                                        }
-                                        
-                                        foreach ($players as $index => $player): 
-                                            $pMoves = $playerMoves[$index] ?? [];
-                                            $move = array_shift($pMoves);
-
-                                            if(false){
-                                                doubleMove:
-                                                $move = array_shift($pMoves);
-                                                ?>
-                                                </ul>
-                                                <ul>
-                                                    <li class="rounds">R<?= $round ?></li>
-                                            <?php
-                                            } 
-                                            if ($move): ?>
-                                                <?php
-                                                $transportType = $move['transport_type'];
-                                                $showMove = true;
-                                                
-                                                // Hide Mr. X moves unless it's a reveal round or game is finished
-                                                if ($player['player_type'] == 'mr_x' && $game['status'] == 'active' && !$isUserMrX) {
-                                                    $showMove = in_array($round, [3, 8, 13, 18, 23, 28, 33, 38]) || $game['status'] == 'finished';
-                                                }
-                                                $transportType = $move['is_hidden']? 'X':$move['transport_type'];
-
-                                                $moveText = $showMove ? $transportType . '.' . $move['to_position'] :$transportType . '.--';
-                                                
-                                                ?>
-                                                <li class="moves m_<?= $transportType ?>">
-                                                    <?= $moveText ?>
-                                                </li>
-                                            <?php endif; 
-                                            if(count($pMoves) > 0){
-                                                goto doubleMove;
-                                            }
-                                            ?>
-
-                                        <?php endforeach; ?>
-                                    </ul>
-                                <?php 
-                                    endforeach;
-                                endif; ?>
                             </div>
                         </div>
 
@@ -1422,6 +1292,62 @@ if ($game['status'] == 'waiting') {
             updateZoom();
         }
 
+        // Function to reattach player highlighting event listeners
+        function reattachPlayerHighlighting() {
+            const playerPositions = document.querySelectorAll('#playerpos p');
+            const mapPlayers = document.querySelectorAll('#map .player');
+            
+            playerPositions.forEach(function(playerPos, index) {
+                // Remove any existing event listeners to prevent duplicates
+                playerPos.removeEventListener('click', playerPos.highlightHandler);
+                
+                // Create and store the event handler
+                playerPos.highlightHandler = function() {
+                    // Remove previous highlights
+                    playerPositions.forEach(p => p.classList.remove('highlighted'));
+                    mapPlayers.forEach(p => p.classList.remove('highlighted'));
+                    
+                    // Add highlight to clicked player
+                    playerPos.classList.add('highlighted');
+                    
+                    // Add highlight to corresponding map player
+                    const mapPlayer = document.getElementById('p' + index);
+                    if (mapPlayer) {
+                        mapPlayer.classList.add('highlighted');
+                        
+                        // Scroll map to player position if needed
+                        const mapContainer = document.getElementById('map');
+                        const playerRect = mapPlayer.getBoundingClientRect();
+                        const mapRect = mapContainer.getBoundingClientRect();
+                        
+                        // Check if player is outside visible area
+                        if (playerRect.left < mapRect.left || playerRect.right > mapRect.right ||
+                            playerRect.top < mapRect.top || playerRect.bottom > mapRect.bottom) {
+                            mapPlayer.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'center',
+                                inline: 'center'
+                            });
+                        }
+                    }
+                };
+                
+                // Add the event listener
+                playerPos.addEventListener('click', playerPos.highlightHandler);
+            });
+            
+            // Clear highlights when clicking elsewhere (only attach once)
+            if (!window.highlightClearHandler) {
+                window.highlightClearHandler = function(e) {
+                    if (!e.target.closest('#playerpos p') && !e.target.closest('#map .player')) {
+                        playerPositions.forEach(p => p.classList.remove('highlighted'));
+                        mapPlayers.forEach(p => p.classList.remove('highlighted'));
+                    }
+                };
+                document.addEventListener('click', window.highlightClearHandler);
+            }
+        }
+
         // Initialize zoom controls
         document.addEventListener('DOMContentLoaded', function() {
             const zoomInBtn = document.getElementById('zoom-in');
@@ -1457,49 +1383,8 @@ if ($game['status'] == 'waiting') {
                 });
             }
 
-            // Player position highlighting
-            const playerPositions = document.querySelectorAll('#playerpos p');
-            const mapPlayers = document.querySelectorAll('#map .player');
-            
-            playerPositions.forEach(function(playerPos, index) {
-                playerPos.addEventListener('click', function() {
-                    // Remove previous highlights
-                    playerPositions.forEach(p => p.classList.remove('highlighted'));
-                    mapPlayers.forEach(p => p.classList.remove('highlighted'));
-                    
-                    // Add highlight to clicked player
-                    playerPos.classList.add('highlighted');
-                    
-                    // Add highlight to corresponding map player
-                    const mapPlayer = document.getElementById('p' + index);
-                    if (mapPlayer) {
-                        mapPlayer.classList.add('highlighted');
-                        
-                        // Scroll map to player position if needed
-                        const mapContainer = document.getElementById('map');
-                        const playerRect = mapPlayer.getBoundingClientRect();
-                        const mapRect = mapContainer.getBoundingClientRect();
-                        
-                        // Check if player is outside visible area
-                        if (playerRect.left < mapRect.left || playerRect.right > mapRect.right ||
-                            playerRect.top < mapRect.top || playerRect.bottom > mapRect.bottom) {
-                            mapPlayer.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'center',
-                                inline: 'center'
-                            });
-                        }
-                    }
-                });
-            });
-
-            // Clear highlights when clicking elsewhere
-            document.addEventListener('click', function(e) {
-                if (!e.target.closest('#playerpos p') && !e.target.closest('#map .player')) {
-                    playerPositions.forEach(p => p.classList.remove('highlighted'));
-                    mapPlayers.forEach(p => p.classList.remove('highlighted'));
-                }
-            });
+            // Player position highlighting - use the same function as AJAX updates
+            reattachPlayerHighlighting();
 
             // Keyboard shortcuts
             document.addEventListener('keydown', function(e) {
@@ -1577,9 +1462,7 @@ if ($game['status'] == 'waiting') {
 
         // Auto-refresh when it's not the user's turn
         <?php if ($userInGame && $game['status'] == 'active' && !$canMakeMove): ?>
-        setTimeout(function() {
-            location.reload();
-        }, 3000); // Refresh every 3 seconds when waiting
+        // AJAX updates handle this now - no need for page refresh
         <?php endif; ?>
 
         <?php if($canMakeMove): ?>
@@ -1745,6 +1628,107 @@ if ($game['status'] == 'waiting') {
             if (confirmForm) {
                 confirmForm.submit();
                 confirmModal.hide();
+            }
+        });
+
+        // AJAX game state updates
+        let lastUpdateTime = <?= time() ?>;
+        let updateInterval = null;
+
+        function startGameUpdates() {
+            updateInterval = setInterval(checkGameUpdates, 2000); // Check every 2 seconds
+        }
+
+        function stopGameUpdates() {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+                updateInterval = null;
+            }
+        }
+
+        function checkGameUpdates() {
+            fetch('ajax_game_updates.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'game_id=<?= $gameId ?>&last_update=' + lastUpdateTime
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && lastUpdateTime < data.timestamp && data.has_updates ) {
+                        // Update player positions on the map using pre-rendered HTML
+                        updatePlayerPositions(data.rendered_html.player_positions);
+                        
+                        // Update player sidebar using pre-rendered HTML
+                        updatePlayerSidebar(data.rendered_html.player_sidebar);
+                        
+                        // Update move history using pre-rendered HTML
+                        if (data.rendered_html.move_history) {
+                            updateMoveHistory(data.rendered_html.move_history);
+                        }
+                        
+                        // Update game status if changed
+                        if (data.game_status !== '<?= $game['status'] ?>') {
+                            location.reload(); // Full reload if game status changed
+                            return;
+                        }
+                        
+                        // Check if it's now the user's turn
+                        if (data.is_user_turn && !<?= $canMakeMove ? 'true' : 'false' ?>) {
+                            location.reload(); // Reload to show move interface
+                            return;
+                        }
+                        
+                        lastUpdateTime = data.timestamp;
+                }
+            })
+            .catch(error => {
+                console.error('Error checking game updates:', error);
+            });
+        }
+
+        function updatePlayerPositions(positionsHtml) {
+            const map = document.getElementById('map');
+            if (map) {
+                // Remove existing player elements
+                map.querySelectorAll('.player').forEach(el => el.remove());
+                // Add new player elements
+                map.insertAdjacentHTML('beforeend', positionsHtml);
+                // Reattach highlighting to include new map players
+                reattachPlayerHighlighting();
+            }
+        }
+
+        function updatePlayerSidebar(sidebarHtml) {
+            const playerPos = document.getElementById('playerpos');
+            if (playerPos) {
+                playerPos.innerHTML = sidebarHtml;
+                // Reattach event listeners after DOM update
+                reattachPlayerHighlighting();
+            }
+        }
+
+        function updateMoveHistory(moveHistoryHtml) {
+            const moveTable = document.getElementById('movetbl');
+            if (moveTable) {
+                moveTable.innerHTML= moveHistoryHtml;
+            }
+        }
+
+        // Start AJAX updates when game is active
+        <?php if ($game['status'] == 'active'): ?>
+        startGameUpdates();
+        <?php endif; ?>
+
+        // Stop updates when page is hidden
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                stopGameUpdates();
+            } else {
+                <?php if ($game['status'] == 'active'): ?>
+                startGameUpdates();
+                <?php endif; ?>
             }
         });
     </script>

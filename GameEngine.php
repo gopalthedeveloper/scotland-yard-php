@@ -63,12 +63,12 @@ class GameEngine {
     }
     
     // Move validation and execution
-    public function makeMove($gameId, $playerId, $toPosition, $transportType, $isHidden = false, $isDoubleMove = false) {
+    public function makeMove($gameId, $currentUserId, $playerId, $toPosition, $transportType, $isHidden = false, $isDoubleMove = false) {
         $game = $this->db->getGame($gameId);
         $currentPlayer = $this->db->getCurrentPlayer($gameId);
         
         // Validate it's the player's turn
-        if ($currentPlayer['id'] != $playerId || $currentPlayer['user_id'] != $_SESSION['user_id']) {
+        if ($currentPlayer['id'] != $playerId || $currentPlayer['user_id'] != $currentUserId) {
             return ['success' => false, 'message' => 'Not your turn'];
         }
         
