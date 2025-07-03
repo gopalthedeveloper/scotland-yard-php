@@ -49,6 +49,8 @@ define('PLAYER_ICONS', [
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_only_cookies', 1);
 ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
+ini_set('session.cookie_samesite', 'Lax'); // Allow cross-site requests for AJAX
+ini_set('session.cookie_path', '/'); // Ensure cookie is available for all paths
 
 // Error reporting
 error_reporting(E_ALL);

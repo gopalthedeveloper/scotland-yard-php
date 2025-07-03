@@ -1,8 +1,8 @@
 <?php
-require_once 'model/config.php';
-require_once 'model/Database.php';
-require_once 'model/GameEngine.php';
-require_once 'model/GameRenders.php';
+require_once '../model/config.php';
+require_once '../model/Database.php';
+require_once '../model/GameEngine.php';
+require_once '../model/User.php';
 
 
 // Check if user is logged in
@@ -30,7 +30,7 @@ if (!$gameId) {
 
 $db = new Database();
 $gameEngine = new GameEngine();
-$gameRenders = new GameRenders();
+$UserModel = new User();
 
 // Get current game state
 $game = $db->getGame($gameId);
@@ -40,7 +40,6 @@ if (!$game) {
     echo json_encode(['success' => false, 'message' => 'Game not found']);
     exit();
 }
-
 // Get the maximum timestamp from all relevant tables using GameEngine
 $maxTimestamp = $gameEngine->getMaxGameTimestamp($gameId);
 
@@ -63,7 +62,7 @@ if (!$hasUpdates) {
 
 $players = $db->getGamePlayers($gameId);
 $currentPlayer = $db->getCurrentPlayer($gameId);
-$userPlayer = $gameRenders->getUserPlayer($players);
+$userPlayer = $UserModel->getUserPlayer($players);
 
 // There are updates, process the data
 $isUserTurn = false;
@@ -78,8 +77,8 @@ if ($userPlayer && $currentPlayer) {
     }
 }
 
-// Use GameRenders to generate HTML using the new template system
-$playerPositionsHtml = $gameRenders->renderHtmlTemplate('player_positions', [
+// Use GameEngine to generate HTML using the new template system
+$playerPositionsHtml = $gameEngine->renderHtmlTemplate('player_positions', [
     'players' => $players,
     'currentPlayer' => $currentPlayer,
     'game' => $game,
@@ -87,13 +86,13 @@ $playerPositionsHtml = $gameRenders->renderHtmlTemplate('player_positions', [
     'boardNodes' =>  $db->getBoardNodes()
 ]);
 
-$playerSidebarHtml = $gameRenders->renderHtmlTemplate('player_sidebar', [
+$playerSidebarHtml = $gameEngine->renderHtmlTemplate('player_sidebar', [
     'players' => $players,
     'currentPlayer' => $currentPlayer,
     'userPlayer' => $userPlayer
 ]);
 
-$moveHistoryHtml = $gameRenders->renderHtmlTemplate('move_history', [
+$moveHistoryHtml = $gameEngine->renderHtmlTemplate('move_history', [
     'gameId' => $gameId,
     'players' => $players,
     'game' => $game,

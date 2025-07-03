@@ -53,12 +53,17 @@ class GameEngine {
         
         // Shuffle positions
         shuffle($nodeIds);
-        
+
+        $detectiveOrder = 1;
         // Assign positions to players
         foreach ($players as $index => $player) {
             $position = $nodeIds[$index];
             $this->db->updatePlayerPosition($player['id'], $position);
             $this->db->setPlayerInitialTickets($player);
+             if ($player['player_type'] != 'mr_x') {
+                $this->db->updatePlayerOrder($player['id'], $detectiveOrder);
+                $detectiveOrder++;
+            }
         }
     }
     
@@ -242,9 +247,9 @@ class GameEngine {
                 // Player can control if assigned OR if it's their own detective
                 // For AI detectives (is_ai is true), only check if assigned
                 if ($detective['is_ai']) {
-                    return $detective['controlled_by_user_id'] == $this->getUserIdForPlayer($playerId);
+                    return ($detective['controlled_by_user_id'] ?? null) == $this->getUserIdForPlayer($playerId);
                 } else {
-                    return $detective['controlled_by_user_id'] == $this->getUserIdForPlayer($playerId) || $detective['id'] == $playerId;
+                    return ($detective['controlled_by_user_id'] ?? null) == $this->getUserIdForPlayer($playerId) || $detective['id'] == $playerId;
                 }
             }
         }
@@ -275,7 +280,7 @@ class GameEngine {
         
         // Get additional detectives assigned to this player (including AI detectives)
         foreach ($detectiveAssignments as $detective) {
-            if ($detective['controlled_by_user_id'] == $userId && $detective['id'] != $playerId) {
+            if (($detective['controlled_by_user_id'] ?? null) == $userId && $detective['id'] != $playerId) {
                 $controlledDetectives[] = $detective;
             }
         }
@@ -461,6 +466,31 @@ class GameEngine {
     public function hasGameUpdates($gameId, $lastUpdate) {
         $maxTimestamp = $this->getMaxGameTimestamp($gameId);
         return $maxTimestamp > $lastUpdate;
+    }
+
+
+    /**
+     * Render HTML template with variables
+     */
+    public function renderHtmlTemplate($templateName, $variables = []) {
+        // Extract variables to make them available in template scope
+        extract($variables);
+        
+        // Start output buffering
+        ob_start();
+        // Include the template file
+        $templatePath = __DIR__ . "/../views/templates/{$templateName}.php";
+        if (file_exists($templatePath)) {
+            include $templatePath;
+        } else {
+            $templatePath_real = realpath($templatePath);
+            throw new Exception("Template file not found: {$templatePath} {$templatePath_real}");
+        }
+        
+        // Get the rendered content and clean the buffer
+        $html = ob_get_clean();
+        
+        return $html;
     }
 }
 ?> 

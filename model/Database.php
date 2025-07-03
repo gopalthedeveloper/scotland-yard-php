@@ -81,6 +81,7 @@ class Database {
     public function updateGameStatus($gameId, $status, $winner = null) {
         $stmt = $this->pdo->prepare("UPDATE games SET status = ?, winner = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$status, $winner, $gameId]);
+        $this->updateGameTimestamp($gameId, 'game');
     }
     
     public function updateGameRound($gameId, $round) {
@@ -91,10 +92,10 @@ class Database {
     public function addPlayerToGame($gameId, $userId, $playerType, $playerOrder) {
         // First create the player
         $stmt = $this->pdo->prepare("INSERT INTO game_players (game_id, player_type, player_order, player_name, is_ai) 
-        VALUES (?, ?, ?, ?, ?)");
+        VALUES (?, ?, 1, ?, ?)");
         $playerName = "Player " . time(); // Generate unique name
         $isAI = 0; // Convert boolean to integer for MySQL
-        $stmt->execute([$gameId, $playerType, $playerOrder, $playerName, $isAI]);
+        $stmt->execute([$gameId, $playerType, $playerName, $isAI]);
         
         $playerId = $this->pdo->lastInsertId();
         
@@ -105,13 +106,13 @@ class Database {
         return $playerId;
     }
     
-    public function createAIDetective($gameId, $playerOrder) {
+    public function createAIDetective($gameId) {
         // Create an AI detective
         $stmt = $this->pdo->prepare("INSERT INTO game_players (game_id, player_type, player_order, player_name, is_ai) 
-        VALUES (?, 'detective', ?, ?, ?)");
+        VALUES (?, 'detective', 2, ?, ?)");
         $playerName = "AI Detective " . time(); // Generate unique name
         $isAI = 1; // Convert boolean to integer for MySQL
-        $stmt->execute([$gameId, $playerOrder, $playerName, $isAI]);
+        $stmt->execute([$gameId, $playerName, $isAI]);
         
         return $this->pdo->lastInsertId();
     }
@@ -129,7 +130,7 @@ class Database {
                    ugm.mapping_type,
                    ugm.user_id
             FROM game_players gp 
-            LEFT JOIN user_game_mappings ugm ON gp.id = ugm.player_id AND ugm.mapping_type = 'owner'
+            JOIN user_game_mappings ugm ON gp.id = ugm.player_id AND ugm.mapping_type = 'owner'
             LEFT JOIN users u ON ugm.user_id = u.id 
             WHERE gp.game_id = ? AND gp.is_ai = 0
             ORDER BY gp.player_order
@@ -145,7 +146,8 @@ class Database {
                 SELECT gp.*, 
                        u.username,
                        ugm.mapping_type,
-                       ugm.user_id
+                       ugm.user_id,
+                       ugm.created_at
                 FROM game_players gp 
                 LEFT JOIN user_game_mappings ugm ON gp.id = ugm.player_id
                 LEFT JOIN users u ON ugm.user_id = u.id 
@@ -158,12 +160,13 @@ class Database {
                 SELECT gp.*, 
                        u.username,
                        ugm.mapping_type,
-                       ugm.user_id
+                       ugm.user_id,
+                       ugm.created_at
                 FROM game_players gp 
                 LEFT JOIN user_game_mappings ugm ON gp.id = ugm.player_id
                 LEFT JOIN users u ON ugm.user_id = u.id 
                 WHERE gp.game_id = ? 
-                ORDER BY gp.player_order
+                ORDER BY gp.player_order,ugm.created_at
             ");
             $stmt->execute([$gameId]);
             return $stmt->fetchAll();
@@ -218,7 +221,15 @@ class Database {
         $stmt = $this->pdo->prepare("UPDATE game_players SET player_type = ? WHERE $whereCol = ?");
         $stmt->execute([$playerType, $id]);
     }
-    
+    public function resetLobbyPlayerOrder($gameId) {
+        $stmt = $this->pdo->prepare("UPDATE game_players SET 
+        player_order =  (CASE
+                        WHEN player_type = 'mr_x' THEN 0
+                        WHEN is_ai = 0 THEN 1
+                        ELSE 2 END )
+         WHERE game_id = ?");
+        $stmt->execute([$gameId]);
+    }
     public function updatePlayerOrder($playerId, $playerOrder) {
         $stmt = $this->pdo->prepare("UPDATE game_players SET player_order = ? WHERE id = ?");
         $stmt->execute([$playerOrder, $playerId]);
@@ -381,7 +392,7 @@ class Database {
 
     public function assignAIDetectiveToUser($aiPlayerId, $userId) {
         // Set is_ai to 0 (now human-controlled)
-        $stmt = $this->pdo->prepare("UPDATE game_players SET is_ai = 0 WHERE id = ?");
+        $stmt = $this->pdo->prepare("UPDATE game_players SET is_ai = 0,player_order=1 WHERE id = ?");
         $stmt->execute([$aiPlayerId]);
         // Add owner mapping
         $player = $this->getPlayerById($aiPlayerId);
@@ -390,7 +401,7 @@ class Database {
     }
 
     public function convertHumanToAIDetective($playerId) {
-        $stmt = $this->pdo->prepare("UPDATE game_players SET is_ai = 1, player_type = 'detective' WHERE id = ?");
+        $stmt = $this->pdo->prepare("UPDATE game_players SET is_ai = 1,player_order=2, player_type = 'detective' WHERE id = ?");
         $stmt->execute([$playerId]);
     }
 
@@ -428,6 +439,26 @@ class Database {
         $stmt->execute([$gameId]);
         $result = $stmt->fetch();
         return $result && $result['max_move_timestamp'] ? strtotime($result['max_move_timestamp']) : 0;
+    }
+    
+    /**
+     * Get the maximum timestamp from game_updates table for a specific game
+     */
+    public function getMaxGameTimestamp($gameId) {
+        $stmt = $this->pdo->prepare("SELECT MAX(timestamp) as max_timestamp FROM game_updates WHERE game_id = ?");
+        $stmt->execute([$gameId]);
+        $result = $stmt->fetch();
+        return $result && $result['max_timestamp'] ? strtotime($result['max_timestamp']) : 0;
+    }
+    
+    /**
+     * Update the timestamp for a specific update type in game_updates table
+     */
+    public function updateGameTimestamp($gameId, $updateType) {
+        $stmt = $this->pdo->prepare("INSERT INTO game_updates (game_id, update_type, timestamp) 
+                                    VALUES (?, ?, CURRENT_TIMESTAMP) 
+                                    ON DUPLICATE KEY UPDATE timestamp = CURRENT_TIMESTAMP");
+        $stmt->execute([$gameId, $updateType]);
     }
 }
 ?> 

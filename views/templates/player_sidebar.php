@@ -11,6 +11,7 @@
 
 $isUserMrX = ($userPlayer && $userPlayer['player_type'] == 'mr_x');
 $playerIcons = PLAYER_ICONS;
+$aiCount = 0;
 foreach ($players as $index => $player) {
     $sidebarPosition = '0';
     if ($player['current_position']) {
@@ -29,6 +30,7 @@ foreach ($players as $index => $player) {
             <?= $iconData[1] ?>
             <use href="#i-p<?= $index ?>"/>
         </svg>
+        <?php if($player['is_ai'] ==1){$aiCount++; echo $aiCount.' AI ';}?>
         <?= htmlspecialchars($player['username']) ?>
         <b><?= $sidebarPosition ?></b>
     </p>

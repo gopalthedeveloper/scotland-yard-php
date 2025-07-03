@@ -88,6 +88,18 @@ CREATE TABLE game_settings (
     UNIQUE KEY unique_game_setting (game_id, setting_key)
 );
 
+-- Add game_updates table to track different types of updates
+CREATE TABLE `game_updates` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `game_id` int(11) NOT NULL,
+  `update_type` enum('game','user','moves') NOT NULL,
+  `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `game_id` (`game_id`),
+  KEY `update_type` (`update_type`),
+  KEY `timestamp` (`timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Game board nodes table
 CREATE TABLE board_nodes (
     id INT AUTO_INCREMENT PRIMARY KEY,
