@@ -125,7 +125,7 @@ function handleJoinGame($db, $gameId, $userId) {
     } else {
         $playerType = 'detective';
         $playerOrder = count($players);
-        $db->addPlayerToGame($gameId, $userId, $playerType);
+        $db->addPlayerToGame($gameId, $userId, $playerType,1);
     }
     
     // Update user timestamp

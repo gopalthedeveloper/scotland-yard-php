@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $gameId = $db->createGame($gameName, $_SESSION['user_id'], $maxPlayers);
         
         // Add creator as first player (detective by default, can be changed to Mr. X later)
-        $db->addPlayerToGame($gameId, $_SESSION['user_id'], 'detective');
+        $db->addPlayerToGame($gameId, $_SESSION['user_id'], 'detective',1);
         
         header("Location: game.php?id=$gameId");
         exit();

@@ -454,7 +454,10 @@ ob_start();
                 const mapPlayer = document.getElementById('p' + index);
                 if (mapPlayer) {
                     mapPlayer.classList.add('highlighted');
-                    
+                    // Auto-refresh every 5 seconds
+                    setTimeout(function() {
+                        mapPlayer.classList.remove('highlighted');
+                    }, 5000);
                     // Scroll map to player position if needed
                     const mapContainer = document.getElementById('map');
                     const playerRect = mapPlayer.getBoundingClientRect();
