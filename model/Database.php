@@ -4,6 +4,8 @@ require_once 'config.php';
 class Database {
     private $pdo;
     private $config;
+    private static $instance;
+    
     
     public function __construct() {
         try {
@@ -21,6 +23,16 @@ class Database {
             die("Database connection failed: " . $e->getMessage());
         }
         $this->config = GAME_CONFIG;
+    }
+
+    /**
+     * @return Database
+     */
+    public static function getInstance() {
+        if ( self::$instance === null ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
     }
     
     // User management

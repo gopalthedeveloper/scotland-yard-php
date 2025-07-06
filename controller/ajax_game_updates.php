@@ -8,14 +8,14 @@ require_once '../model/User.php';
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
-    echo json_encode(['success' => false, 'message' => 'Not authenticated']);
+    echo json_encode(['response_status' => false, 'message' => 'Not authenticated']);
     exit();
 }
 
 // Check if it's a POST request
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Method not allowed']);
+    echo json_encode(['response_status' => false, 'message' => 'Method not allowed']);
     exit();
 }
 
@@ -24,7 +24,7 @@ $lastUpdate = $_POST['last_update'] ?? 0;
 
 if (!$gameId) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Game ID required']);
+    echo json_encode(['response_status' => false, 'message' => 'Game ID required']);
     exit();
 }
 
@@ -37,7 +37,7 @@ $game = $db->getGame($gameId);
 
 if (!$game) {
     http_response_code(404);
-    echo json_encode(['success' => false, 'message' => 'Game not found']);
+    echo json_encode(['response_status' => false, 'message' => 'Game not found']);
     exit();
 }
 // Get the maximum timestamp from all relevant tables using GameEngine
@@ -49,7 +49,7 @@ $hasUpdates = $gameEngine->hasGameUpdates($gameId, $lastUpdate);
 if (!$hasUpdates) {
     // No updates, return minimal response
     $response = [
-        'success' => true,
+        'response_status' => true,
         'timestamp' => $maxTimestamp,
         'has_updates' => false
     ];
@@ -102,7 +102,7 @@ $moveHistoryHtml = $gameEngine->renderHtmlTemplate('move_history', [
 
 // Prepare response data
 $response = [
-    'success' => true,
+    'response_status' => true,
     'timestamp' => $maxTimestamp,
     'has_updates' => true,
     'game_status' => $game['status'],

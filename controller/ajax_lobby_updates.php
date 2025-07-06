@@ -16,20 +16,20 @@ function handleResult($response) {
 }
 
 $result = $UserModel->checkUserLoggedIn();
-if(!$result['success'])handleResult($result);
+if(!$result['response_status'])handleResult($result);
 
 
 $gameId = $_POST['game_id'] ?? null;
 if (!$gameId) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Game ID required']);
+    echo json_encode(['response_status' => false, 'message' => 'Game ID required']);
     exit();
 }
 
 $game = $db->getGame($gameId);
 if (!$game) {
     http_response_code(404);
-    echo json_encode(['success' => false, 'message' => 'Game not found']);
+    echo json_encode(['response_status' => false, 'message' => 'Game not found']);
     exit();
 }
 
@@ -79,17 +79,17 @@ function handleJoinGame($db, $gameId, $userId) {
     }
     
     if ($userInGame) {
-        echo json_encode(['success' => false, 'message' => 'Already in game']);
+        echo json_encode(['response_status' => false, 'message' => 'Already in game']);
         return;
     }
     
     if ($game['status'] != 'waiting') {
-        echo json_encode(['success' => false, 'message' => 'Game is not in waiting status']);
+        echo json_encode(['response_status' => false, 'message' => 'Game is not in waiting status']);
         return;
     }
     
     if (count($humanPlayers) >= $game['max_players']) {
-        echo json_encode(['success' => false, 'message' => 'Game is full']);
+        echo json_encode(['response_status' => false, 'message' => 'Game is full']);
         return;
     }
     
@@ -131,7 +131,7 @@ function handleJoinGame($db, $gameId, $userId) {
     // Update user timestamp
     $db->updateGameTimestamp($gameId, 'user');
     
-    echo json_encode(['success' => true, 'message' => 'Joined game successfully']);
+    echo json_encode(['response_status' => true, 'message' => 'Joined game successfully']);
 }
 
 function handleLeaveGame($db, $gameId, $userId) {
@@ -147,14 +147,14 @@ function handleLeaveGame($db, $gameId, $userId) {
     }
     
     if (!$userFound) {
-        echo json_encode(['success' => false, 'message' => 'User not found in game or not owner']);
+        echo json_encode(['response_status' => false, 'message' => 'User not found in game or not owner']);
         return;
     }
     
     // Update user timestamp
     $db->updateGameTimestamp($gameId, 'user');
     
-    echo json_encode(['success' => true, 'message' => 'Left game successfully']);
+    echo json_encode(['response_status' => true, 'message' => 'Left game successfully']);
 }
 
 function handleCreateAIDetective($db, $gameId, $numDetectives) {
@@ -170,9 +170,9 @@ function handleCreateAIDetective($db, $gameId, $numDetectives) {
         // Update user timestamp
         $db->updateGameTimestamp($gameId, 'user');
         
-        echo json_encode(['success' => true, 'message' => "Created $numDetectives AI detective(s) successfully"]);
+        echo json_encode(['response_status' => true, 'message' => "Created $numDetectives AI detective(s) successfully"]);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Invalid number of detectives']);
+        echo json_encode(['response_status' => false, 'message' => 'Invalid number of detectives']);
     }
 }
 
@@ -183,9 +183,9 @@ function handleRemoveAIDetective($db, $gameId, $aiId) {
         // Update user timestamp
         $db->updateGameTimestamp($gameId, 'user');
         
-        echo json_encode(['success' => true, 'message' => 'AI detective removed successfully']);
+        echo json_encode(['response_status' => true, 'message' => 'AI detective removed successfully']);
     } else {
-        echo json_encode(['success' => false, 'message' => 'AI ID required']);
+        echo json_encode(['response_status' => false, 'message' => 'AI ID required']);
     }
 }
 
@@ -200,9 +200,9 @@ function handleAssignDetective($db, $gameId, $aiId, $userId) {
         // Update user timestamp
         $db->updateGameTimestamp($gameId, 'user');
         
-        echo json_encode(['success' => true, 'message' => 'Detective assignment updated']);
+        echo json_encode(['response_status' => true, 'message' => 'Detective assignment updated']);
     } else {
-        echo json_encode(['success' => false, 'message' => 'AI ID and User ID required']);
+        echo json_encode(['response_status' => false, 'message' => 'AI ID and User ID required']);
     }
 }
 
@@ -232,9 +232,9 @@ function handleSelectMrX($db, $gameId, $playerId) {
         // Update user timestamp
         $db->updateGameTimestamp($gameId, 'user');
         
-        echo json_encode(['success' => true, 'message' => 'Mr. X selected successfully']);
+        echo json_encode(['response_status' => true, 'message' => 'Mr. X selected successfully']);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Invalid player selected']);
+        echo json_encode(['response_status' => false, 'message' => 'Invalid player selected']);
     }
 }
 
@@ -289,7 +289,7 @@ function handleCheckUpdates($db, $gameId, $lastUpdate) {
         ]);
 
         $response = [
-            'success' => true,
+            'response_status' => true,
             'has_updates' => true,
             'timestamp' => $currentTimestamp,
             'game_status' => $game['status'],
@@ -307,7 +307,7 @@ function handleCheckUpdates($db, $gameId, $lastUpdate) {
         echo json_encode($response);
     } else {
         echo json_encode([
-            'success' => true,
+            'response_status' => true,
             'has_updates' => false,
             'timestamp' => $currentTimestamp
         ]);

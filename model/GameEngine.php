@@ -4,12 +4,23 @@ require_once 'Database.php';
 class GameEngine {
     private $db;
     private $config;
+    private static  $instance;
     
     public function __construct() {
-        $this->db = new Database();
+        $this->db =  Database::getInstance();
         $this->config = GAME_CONFIG;
     }
-    
+
+    /**
+     * @return GameEngine
+     */
+    public static function getInstance() {
+        if ( self::$instance === null ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
     // Game initialization
     public function initializeGame($gameId) {
         $game = $this->db->getGame($gameId);
@@ -74,25 +85,25 @@ class GameEngine {
         
         // Validate it's the player's turn
         if ($currentPlayer['id'] != $playerId || $currentPlayer['user_id'] != $currentUserId) {
-            return ['success' => false, 'message' => 'Not your turn'];
+            return ['response_status' => false, 'message' => 'Not your turn'];
         }
         
         // Validate game is active
         if ($game['status'] !== 'active') {
-            return ['success' => false, 'message' => 'Game is not active'];
+            return ['response_status' => false, 'message' => 'Game is not active'];
         }
         
         // Check if a double move has already been used this round
         if ($isDoubleMove) {
             $doubleMoveUsed = $this->db->getGameSetting($gameId, 'double_move_used_round_' . $game['current_round']);
             if ($doubleMoveUsed == '1') {
-                return ['success' => false, 'message' => 'Double move already used this round'];
+                return ['response_status' => false, 'message' => 'Double move already used this round'];
             }
         }
         // Validate move
         $validation = $this->validateMove( $playerId, $currentPlayer['current_position'], $toPosition, $transportType, $isHidden, $isDoubleMove);
         if (!$validation['valid']) {
-            return ['success' => false, 'message' => $validation['message']];
+            return ['response_status' => false, 'message' => $validation['message']];
         }  
         // Execute move
         $this->executeMove($gameId, $playerId, $currentPlayer['current_position'], $toPosition, $transportType, $isHidden, $isDoubleMove);
@@ -101,7 +112,7 @@ class GameEngine {
         $winCheck = $this->checkWinConditions($gameId);
         if ($winCheck['gameOver']) {
             $this->db->updateGameStatus($gameId, 'finished', $winCheck['winner']);
-            return ['success' => true, 'gameOver' => true, 'winner' => $winCheck['winner']];
+            return ['response_status' => true, 'gameOver' => true, 'winner' => $winCheck['winner']];
         }
         
         // For double moves, don't advance to next player yet
@@ -110,7 +121,7 @@ class GameEngine {
             $this->db->setGameSetting($gameId, 'double_move_used_round_' . $game['current_round'], '1');
             // Set a flag to indicate this is the first move of a double move
             $this->db->setGameSetting($gameId, 'double_move_in_progress', '1');
-            return ['success' => true, 'gameOver' => false, 'doubleMove' => true, 'message' => 'Make your second move'];
+            return ['response_status' => true, 'gameOver' => false, 'doubleMove' => true, 'message' => 'Make your second move'];
         } else {
             // Check if this is the second move of a double move
             $doubleMoveInProgress = $this->db->getGameSetting($gameId, 'double_move_in_progress');
@@ -123,7 +134,7 @@ class GameEngine {
             $this->nextTurn($gameId);
         }
         
-        return ['success' => true, 'gameOver' => false];
+        return ['response_status' => true, 'gameOver' => false];
     }
     
     private function validateMove($playerId, $fromPosition, $toPosition, $transportType, $isHidden, $isDoubleMove) {

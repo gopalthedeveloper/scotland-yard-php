@@ -219,8 +219,7 @@ function checkLobbyUpdates() {
     })
     .then(response => response.json())
     .then(data => {
-        console.log(data);
-        if (data.success && data.has_updates) {
+        if (data.response_status && data.has_updates) {
             // Update lobby data
             updateLobbyData(data.data);
             updateLobbyView(data.rendered_html);
@@ -233,7 +232,7 @@ function checkLobbyUpdates() {
                 location.href = 'game.php?id=<?= $gameId ?>';
                 return;
             }
-        } else if (data.success) {
+        } else if (data.response_status) {
             // No updates, but update timestamp to prevent unnecessary requests
             lastUpdateTime = data.timestamp;
         }
@@ -380,7 +379,7 @@ function performLobbyAction(operation, additionalData = {}) {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
+        if (data.response_status) {
             showAlert(data.message, 'success');
             // Trigger an immediate update check
             checkLobbyUpdates();

@@ -67,7 +67,7 @@ if ($game['status'] == 'active' && $userInGame && isset($_POST['make_move'])) {
 
     if ($toPosition && $transportType) {
         $result = $gameEngine->makeMove($gameId,$_SESSION['user_id'], $playerMakingMove['id'], $toPosition, $transportType, $isHidden, $isDoubleMove);
-        if ($result['success']) {
+        if ($result['response_status']) {
             header("Location: game.php?id=$gameId");
             exit();
         } else {
@@ -799,7 +799,7 @@ ob_start();
         })
         .then(response => response.json())
         .then(data => {
-            if (data.success && data.has_updates) {
+            if (data.response_status && data.has_updates) {
                 console.log('AJAX Update - Changes detected at timestamp:', data.timestamp);
                 
                 // Update player positions on the map using pre-rendered HTML
@@ -827,7 +827,7 @@ ob_start();
                 
                 // Update the last update timestamp
                 lastUpdateTime = data.timestamp;
-            } else if (data.success) {
+            } else if (data.response_status) {
                 // No updates, but update timestamp to prevent unnecessary requests
                 lastUpdateTime = data.timestamp;
             }
