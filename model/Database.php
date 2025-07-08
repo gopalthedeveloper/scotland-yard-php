@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'User.php';
 
 class Database {
     private $pdo;
@@ -41,10 +42,35 @@ class Database {
         $stmt = $this->pdo->prepare("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)");
         return $stmt->execute([$username, $email, $hash]);
     }
+
+    public function getUserByColumn($value, $column = 'email',$extra = '') {
+        $stmt = $this->pdo->prepare("SELECT * FROM users WHERE $column = ? $extra");
+        $stmt->execute([$value]);
+        return $stmt->fetch();
+    }
+
+    public function updateUserByColumn($userId, $updateData) {
+        if(count(array_keys($updateData)) == 0){
+            return;
+        } 
+        $updateColumns = '';
+        $subsctituteValue = [];
+        foreach($updateData as $key => $value) {
+            if($updateColumns == '') {
+                $updateColumns = $key.'= ?';
+            } else {
+                $updateColumns .= ",{$key} = ?";
+            }
+            $subsctituteValue[]=$value;
+        }
+        $subsctituteValue[] = $userId;
+        $stmt = $this->pdo->prepare("UPDATE users SET $updateColumns WHERE id = ?");
+        return $stmt->execute($subsctituteValue);
+    }
     
     public function authenticateUser($username, $password) {
-        $stmt = $this->pdo->prepare("SELECT * FROM users WHERE username = ? AND is_active = 1");
-        $stmt->execute([$username]);
+        $stmt = $this->pdo->prepare("SELECT * FROM users WHERE username = ? AND user_status = ?");
+        $stmt->execute([$username,User::STATUS_ACTIVE]);
         $user = $stmt->fetch();
         
         if ($user && password_verify($password, $user['password_hash'])) {

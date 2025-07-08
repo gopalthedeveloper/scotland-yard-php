@@ -7,3 +7,4 @@ config.js
 index.html
 .github/workflows/static.yml
 *DS_Store
+vendor/*

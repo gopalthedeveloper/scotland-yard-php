@@ -56,6 +56,8 @@ include 'views/layouts/header.php';
                 <div class="mb-3">
                     <label for="password" class="form-label">Password</label>
                     <input type="password" class="form-control" id="password" name="password" required>
+                    <p class=""><span>&nbsp;</span><a href="forgot_password.php" class="float-end">Forgot Password?</a></p>
+
                 </div>
                 
                 <div class="d-grid">

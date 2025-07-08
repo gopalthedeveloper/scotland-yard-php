@@ -1,10 +1,39 @@
 <?php
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+use PHPMailer\PHPMailer\SMTP;   
+require_once __DIR__ . '/../vendor/autoload.php';
+
+
+function startsWithAny(string $haystack, array $needles): bool
+{
+    foreach ($needles as $needle) {
+        if (str_starts_with($haystack, $needle)) {
+            return true;
+        }
+    }
+    return false;
+}
+$hostName = startsWithAny($_SERVER['HTTP_HOST'], ['localhost', '192.168.','127.0.0.']) ? 'scotlandyard.rf.gd' : $_SERVER['HTTP_HOST'];
+$server_host = (empty($_SERVER['HTTPS']) ? 'http' : 'https')."://$hostName";
+$actual_host = (empty($_SERVER['HTTPS']) ? 'http' : 'https')."://$_SERVER[HTTP_HOST]";
 // Database configuration
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'scotland_yard');
 define('DB_USER', 'root');
 define('DB_PASS', '');
-
+define('SERVER_HOST_URL',$server_host);
+define('ACTUAL_HOST_URL',$actual_host);
+define('EMAIL_CONFIG', [
+    'smtp_host' => 'smtp.gmail.com',
+    'smtp_user' => 'mapulais@gmail.com',
+    'smtp_pass' => 'fwsu ognv qmxx kdhu',
+    'smtp_port' => 587,
+    'smtp_encryption' => PHPMailer::ENCRYPTION_STARTTLS,
+    'from_email' => 'sribannariammanengineers@gmail.com',
+    'from_name' => 'Scotland Yard',
+    'debug_mode' => SMTP::DEBUG_OFF // Set to SMTP::DEBUG_SERVER for debugging
+]);
 // Game configuration
 define('GAME_CONFIG', [
     'max_players' => 6,
@@ -63,4 +92,6 @@ date_default_timezone_set('UTC');
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+
+require_once('Helpers.php');
 ?> 

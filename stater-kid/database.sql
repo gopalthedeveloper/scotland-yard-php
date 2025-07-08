@@ -1,17 +1,19 @@
 -- Database schema for Scotland Yard PHP game
 
 
-
 -- Users table
-CREATE TABLE users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_login TIMESTAMP NULL,
-    is_active BOOLEAN DEFAULT TRUE
-);
+CREATE TABLE `users` (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(50) UNIQUE NOT NULL,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  password_reset_token VARCHAR(12) DEFAULT NULL,
+  password_token_time TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_login TIMESTAMP NULL DEFAULT NULL,
+  user_status TINYINT(1) NOT NULL DEFAULT 1 COMMENT '0:Inactive,1:Active,2:Blocked'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 
 -- Games table
 CREATE TABLE games (
