@@ -1,6 +1,5 @@
 <?php
 require_once 'config.php';
-require_once 'User.php';
 
 class Database {
     private $pdo;
@@ -37,10 +36,20 @@ class Database {
     }
     
     // User management
-    public function createUser($username, $email, $password) {
-        $hash = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = $this->pdo->prepare("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)");
-        return $stmt->execute([$username, $email, $hash]);
+    public function createUser($username, $email, $hash, $activate_Token) {
+        $stmt = $this->pdo->prepare("INSERT INTO users (username, email, password_hash, password_reset_token, user_status, created_at) VALUES (?, ?, ?, ?, ?, ?)");
+        return $stmt->execute([$username, $email, $hash, $activate_Token, User::STATUS_REGISTERED, date('Y-m-d H:i:s')]);
+    }
+
+    public function generateUniqueToken($table, $column, $length = 10) {
+        $isTokenExists = true;
+        while($isTokenExists) {
+            $token = Helper::generateRandomString($length);
+            $stmt = $this->pdo->prepare("SELECT $column from $table WHERE $column = ?");
+            $stmt->execute([$token]);
+            $isTokenExists = $stmt->fetch() !== false;
+        }
+        return $token;
     }
 
     public function getUserByColumn($value, $column = 'email',$extra = '') {

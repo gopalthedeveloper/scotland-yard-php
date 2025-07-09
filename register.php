@@ -6,8 +6,8 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $db = new Database();
-    
+    $userModel = new User();
+
     $username = trim($_POST['username'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
@@ -25,27 +25,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($password !== $confirm_password) {
         $error = 'Passwords do not match.';
     } else {
-        try {
-            $result = $db->createUser($username, $email, $password);
-            if ($result) {
-                $success = 'Account created successfully! You can now log in.';
-            } else {
-                $error = 'Failed to create account. Please try again.';
-            }
-        } catch (Exception $e) {
-            if (strpos($e->getMessage(), 'Duplicate entry') !== false) {
-                if (strpos($e->getMessage(), 'username') !== false) {
-                    $error = 'Username already exists. Please choose a different one.';
-                } elseif (strpos($e->getMessage(), 'email') !== false) {
-                    $error = 'Email already exists. Please use a different one.';
-                } else {
-                    $error = 'Account already exists.';
-                }
-            } else {
-                $error = 'An error occurred. Please try again.';
-            }
+        $result = $userModel->createUser($username, $email, $password);
+        if ($result['response_status']) {
+            $_SESSION['success_message'] = $result['message'];
+            header('Location: register.php');
+            exit;
+        } else {
+            $error = $result['message'];
         }
     }
+}
+if (isset($_SESSION['success_message'])) {
+    $success = $_SESSION['success_message'];
+    unset($_SESSION['success_message']);
 }
 
 // Set page variables for header

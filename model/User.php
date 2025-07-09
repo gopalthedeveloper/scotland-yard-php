@@ -1,7 +1,5 @@
 <?php
-
 require_once 'Database.php';
-require_once 'GameEngine.php';
 
 class User {
     private $config;
@@ -18,7 +16,44 @@ class User {
         $this->gameEngine =  GameEngine::getInstance();
 
     }
+    public function createUser($username, $email, $password) {
+        $result = ['response_status' => false, 'message' => 'Failed to create user'];
+        if (empty($username) || empty($email) || empty($password)) {
+            $result['message'] = 'All fields are required';
+            return $result;
+        }
 
+        // Check if email already exists
+        if ($this->db->getUserByColumn($email)) {
+            $result['message'] = 'Email is already registered';
+            return $result;
+        }
+
+        // Check if username already exists
+        if ($this->db->getUserByColumn($username, 'username')) {
+            $result['message'] = 'Username is already registered';
+            return $result;
+        }
+
+        // Hash the password
+        $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+
+        $activate_Token = $this->db->generateUniqueToken('users', 'password_reset_token', 10);
+
+
+        // Insert user into database
+        if ($this->db->createUser($username, $email, $hashedPassword, $activate_Token)) {
+
+            // Prepare HTML email
+            $subject = "Welcome to Scotland Yard - Let the Hunt Begin!";
+            $message = $this->gameEngine->renderHtmlTemplate('email/activation_link', ['token' => $activate_Token,'name' => $username], true);
+            Helper::sendEmail($email, $subject, $message);
+            
+            $result = ['response_status' => true, 'message' => 'Account created successfully! Check your email to activate your account.'];
+        }
+        
+        return $result;
+    }
     public function checkUserLoggedIn() {
         $result = ['response_status' => true];
 
@@ -34,7 +69,11 @@ class User {
         $user = $this->db->getUserByColumn($email);
         if($user){
             if($user['user_status'] == User::STATUS_ACTIVE || User::STATUS_REGISTERED) {
-                $update =['password_reset_token' => Helper::generateRandomString(9), 'password_token_time' => date('Y-m-d H:i:s')];
+                $activate_Token =$this->db->generateUniqueToken('users', 'password_reset_token', 10);
+                $update =[
+                    'password_reset_token' => $activate_Token, 
+                    'password_token_time' => date('Y-m-d H:i:s')
+                ];
                 $this->db->updateUserByColumn($user['id'], $update);
                 $result = ['response_status' => true, 'message' => 'password reset link generated', 'data' => ['name' => $user['username'], 'email' => $user['email'],'reset_token' => $update['password_reset_token']]];
             } elseif($user['user_status'] == User::STATUS_BLOCK || 1) {
@@ -84,6 +123,26 @@ class User {
             $user = $this->db->getUserByColumn($token,'password_reset_token', $extra);
             if ($user) {
                 $result = ['response_status' => true, 'message' => 'Valid token' , 'data' => $user];
+            }
+        }
+        return $result;
+    }
+    public function userActivateToken($token) {
+        $result = ['response_status' => false, 'message' => 'Invalid activation link or link has expired'];
+
+        $extra = ' AND password_token_time IS NULL AND user_status = '.User::STATUS_REGISTERED.' AND created_at > "'. date('Y-m-d H:i:s', strtotime('-1 days')).'"';
+        // Check if token exists and is valid
+        $user = $this->db->getUserByColumn($token,'password_reset_token', $extra);
+        if ($user) {
+            // Update user status to active
+            $updateData = [
+                'user_status' => User::STATUS_ACTIVE,
+                'password_reset_token' => null
+            ];
+            if ($this->db->updateUserByColumn($user['id'], $updateData)) {
+                $result = ['response_status' => true, 'message' => 'Account activated successfully'];
+            } else {
+                $result['message'] = 'Failed to activate account';
             }
         }
         return $result;
