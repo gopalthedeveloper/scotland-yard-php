@@ -19,19 +19,21 @@ $result = $UserModel->checkUserLoggedIn();
 if(!$result['response_status'])handleResult($result);
 
 
-$gameId = $_POST['game_id'] ?? null;
-if (!$gameId) {
+
+$gameKey = $_POST['game_key'] ?? null;
+if (!$gameKey) {
     http_response_code(400);
-    echo json_encode(['response_status' => false, 'message' => 'Game ID required']);
+    echo json_encode(['response_status' => false, 'message' => 'Game key required']);
     exit();
 }
 
-$game = $db->getGame($gameId);
+$game = $db->getGameByKey($gameKey);
 if (!$game) {
     http_response_code(404);
     echo json_encode(['response_status' => false, 'message' => 'Game not found']);
     exit();
 }
+$gameId = $game['id'];
 
 // Handle different operations
 $operation = $_POST['operation'] ?? 'check_updates';

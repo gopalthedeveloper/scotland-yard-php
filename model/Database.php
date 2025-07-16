@@ -507,5 +507,12 @@ class Database {
                                     ON DUPLICATE KEY UPDATE timestamp = CURRENT_TIMESTAMP");
         $stmt->execute([$gameId, $updateType]);
     }
+    
+    // Get game by key
+    public function getGameByKey($gameKey) {
+        $stmt = $this->pdo->prepare("SELECT * FROM games WHERE game_key = ?");
+        $stmt->execute([$gameKey]);
+        return $stmt->fetch();
+    }
 }
-?> 
+?>

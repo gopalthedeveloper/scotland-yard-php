@@ -503,5 +503,10 @@ class GameEngine {
         
         return $html;
     }
+
+    // Get game by key
+    public function getGameByKey($gameKey) {
+        return $this->db->getGameByKey($gameKey);
+    }
 }
-?> 
+?>

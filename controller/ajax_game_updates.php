@@ -19,12 +19,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-$gameId = $_POST['game_id'] ?? null;
+
+$gameKey = $_POST['game_key'] ?? null;
 $lastUpdate = $_POST['last_update'] ?? 0;
 
-if (!$gameId) {
+if (!$gameKey) {
     http_response_code(400);
-    echo json_encode(['response_status' => false, 'message' => 'Game ID required']);
+    echo json_encode(['response_status' => false, 'message' => 'Game key required']);
     exit();
 }
 
@@ -33,13 +34,14 @@ $gameEngine = new GameEngine();
 $UserModel = new User();
 
 // Get current game state
-$game = $db->getGame($gameId);
+$game = $db->getGameByKey($gameKey);
 
 if (!$game) {
     http_response_code(404);
     echo json_encode(['response_status' => false, 'message' => 'Game not found']);
     exit();
 }
+$gameId = $game['id'];
 // Get the maximum timestamp from all relevant tables using GameEngine
 $maxTimestamp = $gameEngine->getMaxGameTimestamp($gameId);
 

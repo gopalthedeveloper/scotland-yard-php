@@ -78,7 +78,7 @@ include 'views/layouts/header.php';
                                         </small>
                                     </p>
                                     <div class="d-flex justify-content-between">
-                                        <a href="game.php?id=<?= $game['id'] ?>" class="btn btn-sm btn-primary">Join Game</a>
+                                        <a href="game.php?key=<?= $game['game_key'] ?>" class="btn btn-sm btn-primary">Join Game</a>
                                         <small class="text-muted"><?= date('M j, Y g:i A', strtotime($game['created_at'])) ?></small>
                                     </div>
                                 </div>

@@ -15,21 +15,22 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-$gameId = $_GET['id'] ?? null;
-if (!$gameId) {
+$gameKey = $_GET['key'] ?? null;
+if (!$gameKey) {
     header('Location: index.php');
     exit();
 }
 
-$game = $db->getGame($gameId);
+$game = $db->getGameByKey($gameKey);
 if (!$game) {
     header('Location: index.php');
     exit();
 }
+$gameId = $game['id'];
 
 // Redirect to game.php if game is already active or finished
 if ($game['status'] !== 'waiting') {
-    header("Location: game.php?id=$gameId");
+    header("Location: game.php?key=$gameKey");
     exit();
 }
 
@@ -54,12 +55,12 @@ foreach ($players as $player) {
 if ($userInGame && $game['status'] == 'waiting' && count($players) >= 2 && isset($_POST['start_game'])) {
     if (!$mrXAssigned) {
         $_SESSION['game_error'] = 'Please select Mr. X before starting the game.';
-        header("Location: lobby.php?id=$gameId");
+        header("Location: lobby.php?key=$gameKey");
         exit();
     }
     
     $gameEngine->initializeGame($gameId);
-    header("Location: game.php?id=$gameId");
+    header("Location: game.php?key=$gameKey");
     exit();
 }
 
@@ -215,7 +216,7 @@ function checkLobbyUpdates() {
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: 'game_id=<?= $gameId ?>&last_update=' + lastUpdateTime + '&operation=check_updates'
+        body: 'game_key=<?= $gameKey ?>&last_update=' + lastUpdateTime + '&operation=check_updates'
     })
     .then(response => response.json())
     .then(data => {
@@ -229,7 +230,7 @@ function checkLobbyUpdates() {
             
             // Check if game status changed
             if (data.game_status !== 'waiting') {
-                location.href = 'game.php?id=<?= $gameId ?>';
+                location.href = 'game.php?key=<?= $gameKey ?>';
                 return;
             }
         } else if (data.response_status) {
@@ -364,7 +365,7 @@ function attachRemoveAIListeners() {
 function performLobbyAction(operation, additionalData = {}) {
     stopLobbyUpdates();
     const formData = new FormData();
-    formData.append('game_id', <?= $gameId ?>);
+    formData.append('game_key', '<?= $gameKey ?>');
     formData.append('operation', operation);
     
     // Add additional data

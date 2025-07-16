@@ -14,21 +14,23 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-$gameId = $_GET['id'] ?? null;
-if (!$gameId) {
+
+$gameKey = $_GET['key'] ?? null;
+if (!$gameKey) {
     header('Location: index.php');
     exit();
 }
 
-$game = $db->getGame($gameId);
+$game = $db->getGameByKey($gameKey);
 if (!$game) {
     header('Location: index.php');
     exit();
 }
+$gameId = $game['id'];
 
 // Redirect to lobby.php if game is in waiting status
 if ($game['status'] === 'waiting') {
-    header("Location: lobby.php?id=$gameId");
+    header("Location: lobby.php?key=$gameKey");
     exit();
 }
 
@@ -68,17 +70,17 @@ if ($game['status'] == 'active' && $userInGame && isset($_POST['make_move'])) {
     if ($toPosition && $transportType) {
         $result = $gameEngine->makeMove($gameId,$_SESSION['user_id'], $playerMakingMove['id'], $toPosition, $transportType, $isHidden, $isDoubleMove);
         if ($result['response_status']) {
-            header("Location: game.php?id=$gameId");
+            header("Location: game.php?key=$gameKey");
             exit();
         } else {
             // Store error message in session   
             $_SESSION['game_error'] = $result['message'];
-            header("Location: game.php?id=$gameId");
+            header("Location: game.php?key=$gameKey");
             exit();
         }
     } else {
         $_SESSION['game_error'] = 'Please select both destination and transport type.';
-        header("Location: game.php?id=$gameId");
+        header("Location: game.php?key=$gameKey");
         exit();
     }
 }
@@ -795,7 +797,7 @@ ob_start();
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: 'game_id=<?= $gameId ?>&last_update=' + lastUpdateTime
+            body: 'game_key=<?= $gameKey ?>&last_update=' + lastUpdateTime
         })
         .then(response => response.json())
         .then(data => {
