@@ -13,7 +13,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user = $db->getUserById($_SESSION['user_id']);
-$activeGames = $db->getActiveGames();
+$activeGames = $db->getActiveGames($_SESSION['user_id']);
 
 // Set page variables for header
 $pageTitle = 'Scotland Yard - Game Lobby';
@@ -26,47 +26,74 @@ include 'views/layouts/header.php';
 
 <div class="container mt-4">
     <div class="row">
-        <div class="col-md-8">
-            <h2 class="page-title">Game Lobby</h2>
-            
-            <!-- Create New Game -->
-            <div class="card mb-4 create-game-section">
-                <div class="card-header">
-                    <h5 class="mb-0">Create New Game</h5>
-                </div>
-                <div class="card-body">
-                    <form action="create_game.php" method="POST">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <label for="game_name" class="form-label">Game Name</label>
-                                <input type="text" class="form-control" id="game_name" name="game_name" required>
+            <div class="col-lg-12">
+                <h2 class="page-title">Game Lobby</h2>
+            </div>
+            <div class="col-lg-9">
+                
+                <!-- Create New Game -->
+                <div class="card mb-4 create-game-section">
+                    <div class="card-header">
+                        <h5 class="mb-0">Create New Game</h5>
+                    </div>
+                    <div class="card-body">
+                        <form action="create_game.php" method="POST">
+                            <div class="row">
+                                <div class="col-md-6 col-sm-9">
+                                    <label for="game_name" class="form-label">Game Name</label>
+                                    <input type="text" class="form-control" id="game_name" name="game_name" required>
+                                </div>
+                                <div class="col-md-3 col-sm-3">
+                                    <label for="max_players" class="form-label">Max Players</label>
+                                    <select class="form-select" id="max_players" name="max_players">
+                                        <option value="3">3 Players</option>
+                                        <option value="4">4 Players</option>
+                                        <option value="5">5 Players</option>
+                                        <option value="6" selected>6 Players</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">&nbsp;</label>
+                                    <button type="submit" class="btn btn-primary w-100">Create Game</button>
+                                </div>
                             </div>
-                            <div class="col-md-3">
-                                <label for="max_players" class="form-label">Max Players</label>
-                                <select class="form-select" id="max_players" name="max_players">
-                                    <option value="3">3 Players</option>
-                                    <option value="4">4 Players</option>
-                                    <option value="5">5 Players</option>
-                                    <option value="6" selected>6 Players</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">&nbsp;</label>
-                                <button type="submit" class="btn btn-primary w-100">Create Game</button>
-                            </div>
-                        </div>
-                    </form>
+                        </form>
+                    </div>
                 </div>
             </div>
+            <div class="col-lg-3">
 
-            <!-- Active Games -->
-            <h3 class="page-subtitle">Available Games</h3>
+                <!-- Join Lobby by Game Key -->
+                <div class="card mb-4 create-game-section">
+                    <div class="card-header">
+                        <h5 class="mb-0">Join by Game Code</h5>
+                    </div>
+                    <div class="row justify-content-center">
+                        <div class="card-body">
+                            <form method="get" action="lobby.php">
+                                    <label id="key" class="form-label">Game Code</label>
+
+                                 <div class="col-md-6 col-sm-9 input-group">
+                                    <input type="text" class="form-control" name="key" id="key" placeholder="Enter Game Code" required>
+                                    <button type="submit" class="btn btn-success">Join Lobby</button>
+                                </div>
+                               
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-12">
+                <!-- Active Games -->
+                <h3 class="page-subtitle">Available Games</h3>
+            </div>
+         <div class="col-md-12">
             <?php if (empty($activeGames)): ?>
                 <div class="alert alert-info">No active games available. Create a new game to get started!</div>
             <?php else: ?>
                 <div class="row">
                     <?php foreach ($activeGames as $game): ?>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
                             <div class="card game-card h-100">
                                 <div class="card-body">
                                     <h5 class="card-title"><?= htmlspecialchars($game['game_name']) ?></h5>
@@ -74,12 +101,14 @@ include 'views/layouts/header.php';
                                         <small class="text-muted">
                                             Created by: <?= htmlspecialchars($game['creator_name']) ?><br>
                                             Players: <?= $game['player_count'] ?>/<?= $game['max_players'] ?><br>
-                                            Status: <span class="status-<?= $game['status'] ?>"><?= ucfirst($game['status']) ?></span>
+                                            Status: <span class="status-<?= $game['status'] ?>"><?= ucfirst($game['status']) ?></span><br>Game code: <span  onclick="copyLobbyLink('<?= $game['game_key'] ?>',true)"> <?= htmlspecialchars($game['game_key']) ?></span><br>
+                                            Created: <?= date('M j, Y g:i A', strtotime($game['created_at'])) ?>
                                         </small>
+                                        <small class="text-muted ms-2"></small>  
                                     </p>
-                                    <div class="d-flex justify-content-between">
-                                        <a href="game.php?key=<?= $game['game_key'] ?>" class="btn btn-sm btn-primary">Join Game</a>
-                                        <small class="text-muted"><?= date('M j, Y g:i A', strtotime($game['created_at'])) ?></small>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <a href="lobby.php?key=<?= $game['game_key'] ?>" class="btn btn-sm btn-primary">Go to Lobby</a>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="copyLobbyLink('<?= $game['game_key'] ?>')">Share Lobby</button>
                                     </div>
                                 </div>
                             </div>
@@ -88,38 +117,21 @@ include 'views/layouts/header.php';
                 </div>
             <?php endif; ?>
         </div>
-
-        <div class="col-md-4">
-            <!-- Game Rules -->
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">How to Play</h5>
-                </div>
-                <div class="card-body">
-                    <h6>Objective</h6>
-                    <p><strong>Detectives:</strong> Work together to catch Mr. X<br>
-                    <strong>Mr. X:</strong> Evade capture for <?= GAME_CONFIG['max_rounds'] ?> rounds</p>
-                    
-                    <h6>Transportation</h6>
-                    <ul class="list-unstyled">
-                        <li><strong>T:</strong> Taxi (<?= GAME_CONFIG['tickets']['detective']['taxi'] ?> tickets, detectives), (<?= GAME_CONFIG['tickets']['mr_x']['taxi'] ?> tickets, Mr. X)</li>
-                        <li><strong>B:</strong> Bus (<?= GAME_CONFIG['tickets']['detective']['bus'] ?> tickets, detectives), (<?= GAME_CONFIG['tickets']['mr_x']['bus'] ?> tickets, Mr. X)</li>
-                        <li><strong>U:</strong> Underground (<?= GAME_CONFIG['tickets']['detective']['underground'] ?> tickets, detectives), (<?= GAME_CONFIG['tickets']['mr_x']['underground'] ?> tickets, Mr. X)</li>
-                        <li><strong>X:</strong> Hidden moves (<?= GAME_CONFIG['tickets']['mr_x']['hidden'] ?> tickets, Mr. X only)</li>
-                        <li><strong>2:</strong> Double moves (<?= GAME_CONFIG['tickets']['mr_x']['double'] ?> tickets, Mr. X only)</li>
-                    </ul>
-                    
-                    <h6>Special Rules</h6>
-                    <ul>
-                        <li>Mr. X's position is revealed on rounds <?= implode(', ', GAME_CONFIG['reveal_rounds']) ?></li>
-                        <li>Detectives can see each other's positions</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 
+
+<script>
+function copyLobbyLink(gameKey, onlyKey = false) {
+    const link = onlyKey? gameKey:`${window.location.origin}/lobby.php?key=${gameKey}`;
+    navigator.clipboard.writeText(link).then(function() {
+        console.log(onlyKey);
+        alert(onlyKey?'Lobby key copied to clipboard!':'Lobby link copied to clipboard!');
+    }, function(err) {
+        alert('Failed to copy ' + err);
+    });
+}
+</script>
 <?php
 // Include footer
 include 'views/layouts/footer.php';

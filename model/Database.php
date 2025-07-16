@@ -102,8 +102,9 @@ class Database {
     
     // Game management
     public function createGame($gameName, $createdBy, $maxPlayers = 6) {
-        $stmt = $this->pdo->prepare("INSERT INTO games (game_name, max_players, created_by) VALUES (?, ?, ?)");
-        $stmt->execute([$gameName, $maxPlayers, $createdBy]);
+        $gameKey = $this->generateUniqueToken('games', 'game_key', 8);
+        $stmt = $this->pdo->prepare("INSERT INTO games (game_key,game_name, max_players, created_by) VALUES (?, ?, ?, ?)");
+        $stmt->execute([$gameKey, $gameName, $maxPlayers, $createdBy]);
         return $this->pdo->lastInsertId();
     }
     
@@ -113,16 +114,23 @@ class Database {
         return $stmt->fetch();
     }
     
-    public function getActiveGames() {
-        $stmt = $this->pdo->prepare("SELECT g.*, u.username as creator_name, COUNT(gp.id) as player_count 
-                                    FROM games g 
-                                    LEFT JOIN users u ON g.created_by = u.id 
-                                    LEFT JOIN game_players gp ON g.id = gp.game_id 
-                                    WHERE g.status IN ('waiting', 'active') 
-                                    GROUP BY g.id 
-                                    ORDER BY g.created_at DESC");
-        $stmt->execute();
+    public function getActiveGames($userId) {
+        $stmt = $this->pdo->prepare(
+            "SELECT g.*, u.username as creator_name, COUNT(gp.id) as player_count 
+            FROM games g 
+            LEFT JOIN users u ON g.created_by = u.id 
+            LEFT JOIN game_players gp ON g.id = gp.game_id 
+            WHERE g.status IN ('waiting', 'active') 
+                AND ( g.created_by = ?
+                OR g.id IN (
+                    SELECT game_id FROM user_game_mappings WHERE user_id = ? AND mapping_type IN ('owner', 'controller')
+                ))
+            GROUP BY g.id 
+            ORDER BY g.created_at DESC");
+        $stmt->execute([$userId, $userId]);
+
         return $stmt->fetchAll();
+        
     }
     
     public function updateGameStatus($gameId, $status, $winner = null) {

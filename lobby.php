@@ -96,6 +96,14 @@ require_once 'views/layouts/header.php';
                         <?php endif; ?>
                     </span>
                 </span>
+                <span class="mb-3">
+                    <label for="lobby-link" class="form-label">Share this lobby:<?= $gameKey ?></label>
+                    <span class="input-group">
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyLobbyLink('<?= $gameKey ?>',true)">Copy Code</button>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyLobbyLink('<?= $gameKey ?>')">Copy Link</button>
+                    </span>
+                </span>
+
             </p>
 
             <?php if ($errorMessage): ?>
@@ -166,7 +174,17 @@ require_once 'views/layouts/header.php';
 
 <script src="https://code.jquery.com/jquery-3.7.1.slim.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-
+<script>
+function copyLobbyLink(gameKey, onlyKey = false) {
+    const link = onlyKey? gameKey:`${window.location.origin}/lobby.php?key=${gameKey}`;
+    navigator.clipboard.writeText(link).then(function() {
+        console.log(onlyKey);
+        alert(onlyKey?'Lobby Code copied to clipboard!':'Lobby link copied to clipboard!');
+    }, function(err) {
+        alert('Failed to copy ' + err);
+    });
+}
+</script>
 <script>
 // AJAX Lobby Management
 let lastUpdateTime = <?= $gameEngine->getMaxGameTimestamp($gameId) ?>;
