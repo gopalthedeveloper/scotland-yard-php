@@ -8,8 +8,6 @@ A multi-user web-based implementation of the classic Scotland Yard board game us
 - **Session Management**: Secure user authentication and session handling
 - **Database Storage**: All game data is stored in MySQL database
 - **Real-time Updates**: Auto-refresh functionality for live game updates
-- **QR Code System**: Mr. X uses QR codes to keep moves secret
-- **Responsive Design**: Works on desktop and mobile devices
 - **Game History**: Complete move history and replay functionality
 
 ## Game Rules
@@ -27,7 +25,6 @@ A multi-user web-based implementation of the classic Scotland Yard board game us
 
 ### Special Rules
 - Mr. X's position is revealed on rounds: 3, 8, 13, 18, 23, 28, 33, 38
-- Mr. X uses QR codes to keep moves secret from detectives
 - Detectives can see each other's positions
 - Players cannot occupy the same position
 

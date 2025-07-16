@@ -61,7 +61,6 @@
                     <h6>Special Rules</h6>
                     <ul>
                         <li>Mr. X's position is revealed on rounds 3, 8, 13, 18, 23, 28, 33, 38</li>
-                        <li>Mr. X uses QR codes to keep moves secret</li>
                         <li>Detectives can see each other's positions</li>
                         <li>Mr. X wins if he evades capture for 24 rounds</li>
                         <li>Detectives win if they catch Mr. X</li>

@@ -112,7 +112,6 @@ include 'views/layouts/header.php';
                     <h6>Special Rules</h6>
                     <ul>
                         <li>Mr. X's position is revealed on rounds <?= implode(', ', GAME_CONFIG['reveal_rounds']) ?></li>
-                        <li>Mr. X uses QR codes to keep moves secret</li>
                         <li>Detectives can see each other's positions</li>
                     </ul>
                 </div>
