@@ -88,7 +88,6 @@
                         <li>Multi-player support</li>
                         <li>Real-time updates</li>
                         <li>AI detectives</li>
-                        <li>QR code integration for Mr. X's moves</li>
                         <li>Interactive London map</li>
                     </ul>
                     <p><strong>Version:</strong> 1.0<br>

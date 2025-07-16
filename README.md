@@ -114,10 +114,7 @@ scotland-yard-php/
    - Join games that are waiting for players
    - First player to join becomes Mr. X
 
-3. **Playing the Game**
-   - **Detectives**: Select destination and transportation type
-   - **Mr. X**: Scan QR code to see possible moves, then select letter
-   - Game automatically tracks turns and validates moves
+
 
 4. **Game Features**
    - Real-time updates every 5 seconds
@@ -182,10 +179,6 @@ Modify the database to:
    - Check file permissions for session storage
    - Ensure cookies are enabled
 
-3. **QR Code Not Displaying**
-   - Check internet connection for CDN resources
-   - Verify JavaScript is enabled
-   - Check browser console for errors
 
 4. **Game Not Starting**
    - Ensure minimum 2 players have joined
@@ -214,7 +207,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgments
 
 - Original Scotland Yard board game by Ravensburger
-- QR Code library by QRCode.js
 - Bootstrap for responsive design
 - PHP community for best practices
 
