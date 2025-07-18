@@ -1,0 +1,8 @@
+RewriteEngine On
+
+# Redirect HTTP to HTTPS for non-localhost and non-192.168.x.x requests
+RewriteCond %{HTTPS} off
+RewriteCond %{HTTP_HOST} !^localhost$ [NC]
+RewriteCond %{REMOTE_ADDR} !^127\.0\.0\.1$
+RewriteCond %{REMOTE_ADDR} !^192\.168\.(1?\d{1,2}|2(0-4)?\d|25[0-5])\.(1?\d{1,2}|2(0-4)?\d|25[0-5])$
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
