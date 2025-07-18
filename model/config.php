@@ -97,3 +97,4 @@ require_once('Helpers.php');
 require_once('Database.php');
 require_once('User.php');
 require_once('GameEngine.php');
+require_once('UploadHelper.php');

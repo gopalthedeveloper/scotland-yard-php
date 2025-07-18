@@ -14,7 +14,6 @@ class User {
         $this->config = GAME_CONFIG;
         $this->db =  Database::getInstance();
         $this->gameEngine =  GameEngine::getInstance();
-
     }
     public function createUser($username, $email, $password) {
         $result = ['response_status' => false, 'message' => 'Failed to create user'];
@@ -80,6 +79,40 @@ class User {
                 $result['message'] = 'User is blocked contact Admin';
             }
         }
+        return $result;
+    }
+
+    public function updateProfileImage($userId) {
+        $result = ['response_status' => false, 'message' => 'Failed to update profile image'];
+
+
+        if (empty($userId)) {
+            $result['message'] = 'User ID is required';
+            goto end;
+        }
+        try {
+            $uploadHelper =  UploadHelper::getInstance();
+            $uploadHelper->setFile('profile_image');
+            $uploadHelper->validateUpload();
+            $uploadHelper->convertToRecommended();
+            $result = $uploadHelper->saveFile($userId . '_' . time());
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            goto end;
+        }
+        if ($result['response_status']) {
+            // Update user profile image in database
+            $updateData = ['profile_image' => $result['path']];
+            if ($this->db->updateUserByColumn($userId, $updateData)) {
+                $result = ['response_status' => true, 'message' => 'Profile image updated successfully', 'data' => ['profile_image' => $result['path']]];
+            } else {
+                $result['message'] = 'Failed to update profile image in database';
+            }
+        } else {
+            $result['message'] = 'Failed to save profile image';
+        }
+        
+        end:
         return $result;
     }
 
@@ -171,7 +204,6 @@ class User {
         }
         return $userPlayers;
     }
-    
 
     public function isUserMrX($players) {
         $userPlayer = $this->getUserPlayer($players);

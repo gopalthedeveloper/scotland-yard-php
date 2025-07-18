@@ -7,6 +7,11 @@
     border-bottom: 3px solid #e74c3c;
 }
 
+.header .header-profile-image {
+    height: 40px;
+    width: 40px;
+}
+
 .header .navbar-brand {
     color: #ecf0f1 !important;
     font-weight: bold;
@@ -149,6 +154,31 @@
     background: #f8f9fa;
     border-radius: 15px;
     margin: 2rem 0;
+}
+
+/* Profile Page Styles */
+
+
+.page-profile .profile-image {
+    height: 150px;
+    width: 150px;
+}
+
+.page-profile .profile-image .image {
+    object-fit:cover;
+    cursor:pointer;
+    border: 2px solid #e74c3c;
+}
+.page-profile .profile-image .uploadIcon {
+    width:32px;
+    height:32px;
+    opacity:0;
+    transition:opacity 0.2s;
+    pointer-events:none;
+}
+.page-profile .profile-image:hover .uploadIcon{
+    opacity:1;
+    transition:opacity 0.2s;
 }
 
 /* Status Colors */
