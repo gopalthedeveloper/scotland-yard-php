@@ -71,11 +71,19 @@ require_once 'model/config.php';
             </a>
             <div class="navbar-nav ms-auto">
                 <?php if ($user): ?>
-                <span class="navbar-text me-3"><?= htmlspecialchars($user['username']) ?></span>
-                <?php if (basename($_SERVER['PHP_SELF']) !== 'index.php'): ?>
-                <a class="nav-link" href="index.php">Home</a>
-                <?php endif; ?>
-                <a class="nav-link" href="logout.php">Logout</a>
+                <div class="dropdown">
+                    <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <img src="assets/images/dummy-user.svg" alt="Scotland Yard" height="30" class="d-inline-block align-text-top me-2">
+                        <span><?= htmlspecialchars($user['username']) ?></span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                        <?php if (basename($_SERVER['PHP_SELF']) !== 'index.php'): ?>
+                        <li><a class="dropdown-item" href="index.php">Home</a></li>
+                        <?php endif; ?>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="logout.php">Logout</a></li>
+                    </ul>
+                </div>
                 <?php else: ?>
                 <a class="nav-link" href="login.php">Login</a>
                 <a class="nav-link" href="register.php">Register</a>
