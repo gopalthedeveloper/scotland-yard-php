@@ -1,24 +1,26 @@
-    </div> <!-- End of main-content -->
-    <div class="main-content">
-<!-- Confirmation Modal -->
-  <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="confirmModalLabel">Confirm Action</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <div class="modal-body" id="confirmModalBody">
-          Are you sure you want to proceed?
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-danger" id="confirmModalYes">Yes</button>
-        </div>
-      </div>
     </div>
-  </div>
-</div>
+
+    <div class="main-content">
+        <!-- Confirmation Modal -->
+        <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="confirmModalLabel">Confirm Action</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="confirmModalBody">
+                        Are you sure you want to proceed?
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-danger" id="confirmModalYes">Yes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- Footer -->
     <footer class="footer bg-dark text-light py-3 mt-5">
         <div class="container">
@@ -46,9 +48,10 @@
                 </div>
                 <div class="modal-body">
                     <h6>Objective</h6>
-                    <p><strong>Detectives:</strong> Work together to catch Mr. X<br>
-                    <strong>Mr. X:</strong> Evade capture for 24 rounds</p>
-                    
+                    <p>
+                        <strong>Detectives:</strong> Work together to catch Mr. X<br>
+                        <strong>Mr. X:</strong> Evade capture for 24 rounds
+                    </p>
                     <h6>Transportation</h6>
                     <ul>
                         <li><strong>T:</strong> Taxi (11 tickets)</li>
@@ -57,7 +60,6 @@
                         <li><strong>X:</strong> Hidden moves (5 tickets, Mr. X only)</li>
                         <li><strong>2:</strong> Double moves (2 tickets, Mr. X only)</li>
                     </ul>
-                    
                     <h6>Special Rules</h6>
                     <ul>
                         <li>Mr. X's position is revealed on rounds 3, 8, 13, 18, 23, 28, 33, 38</li>
@@ -90,8 +92,10 @@
                         <li>AI detectives</li>
                         <li>Interactive London map</li>
                     </ul>
-                    <p><strong>Version:</strong> 1.0<br>
-                    <strong>Developed with:</strong> PHP, MySQL, Bootstrap, JavaScript</p>
+                    <p>
+                        <strong>Version:</strong> 1.0<br>
+                        <strong>Developed with:</strong> PHP, MySQL, Bootstrap, JavaScript
+                    </p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -99,14 +103,25 @@
             </div>
         </div>
     </div>
-    
 
     <!-- Bootstrap JS -->
     <script src="https://code.jquery.com/jquery-3.7.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     
+
+    <script>
+    function copyLobbyLink(gameKey, onlyKey = false) {
+        const link = onlyKey? gameKey:`${window.location.origin}/lobby.php?key=${gameKey}`;
+        navigator.clipboard.writeText(link).then(function() {
+            console.log(onlyKey);
+            alert(onlyKey?'Lobby Code copied to clipboard!':'Lobby link copied to clipboard!');
+        }, function(err) {
+            alert('Failed to copy ' + err);
+        });
+    }
+    </script>
     <?php if (isset($includeCustomJS) && $includeCustomJS): ?>
-    <?= $includeCustomJS ?>
+        <?= $includeCustomJS ?>
     <?php endif; ?>
 </body>
-</html> 
+</html>

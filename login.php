@@ -18,6 +18,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($user) {
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
+            if (isset($_GET['redirect']) && !empty($_GET['redirect'])) {
+                header('Location: ' . $_GET['redirect']);
+                exit();
+            } 
             header('Location: index.php');
             exit();
         } else {
@@ -38,7 +42,6 @@ if (isset($_SESSION['reset_email'])) {
 $pageTitle = 'Login - Scotland Yard';
 $pageClass = 'page-login';
 $includeGameCSS = false;
-$showNavbar = false;
 
 // Include header
 include 'views/layouts/header.php';

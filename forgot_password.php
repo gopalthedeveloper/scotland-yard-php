@@ -41,7 +41,6 @@ if (isset($_SESSION['reset_email'])) {
 $pageTitle = 'Forgot password - Scotland Yard';
 $pageClass = 'page-login';
 $includeGameCSS = false;
-$showNavbar = false;
 
 // Include header
 include 'views/layouts/header.php';

@@ -47,7 +47,6 @@ if (empty($token)) {
 $pageTitle = 'Reset Password - Scotland Yard';
 $pageClass = 'page-login';
 $includeGameCSS = false;
-$showNavbar = false;
 
 // Include header
 include 'views/layouts/header.php';

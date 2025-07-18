@@ -44,7 +44,6 @@ if (isset($_SESSION['success_message'])) {
 $pageTitle = 'Register - Scotland Yard';
 $pageClass = 'page-register';
 $includeGameCSS = false;
-$showNavbar = false;
 
 // Include header
 include 'views/layouts/header.php';

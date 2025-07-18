@@ -16,7 +16,7 @@ $user = $db->getUserById($_SESSION['user_id']);
 $activeGames = $db->getActiveGames($_SESSION['user_id']);
 
 // Set page variables for header
-$pageTitle = 'Scotland Yard - Game Lobby';
+$pageTitle = 'Scotland Yard - Manage Lobby';
 $pageClass = 'page-index';
 $includeGameCSS = false;
 
@@ -24,10 +24,11 @@ $includeGameCSS = false;
 include 'views/layouts/header.php';
 ?>
 
-<div class="container mt-4">
-    <div class="row">
+
+    <div class="container">
+        <div class="row">
             <div class="col-lg-12">
-                <h2 class="page-title">Game Lobby</h2>
+                <h2 class="page-title">Manage Lobby</h2>
             </div>
             <div class="col-lg-9">
                 
@@ -73,11 +74,11 @@ include 'views/layouts/header.php';
                             <form method="get" action="lobby.php">
                                     <label id="key" class="form-label">Game Code</label>
 
-                                 <div class="col-md-6 col-sm-9 input-group">
+                                <div class="col-md-6 col-sm-9 input-group">
                                     <input type="text" class="form-control" name="key" id="key" placeholder="Enter Game Code" required>
                                     <button type="submit" class="btn btn-success">Join Lobby</button>
                                 </div>
-                               
+                            
                             </form>
                         </div>
                     </div>
@@ -87,7 +88,7 @@ include 'views/layouts/header.php';
                 <!-- Active Games -->
                 <h3 class="page-subtitle">Available Games</h3>
             </div>
-         <div class="col-md-12">
+            <div class="col-md-12">
             <?php if (empty($activeGames)): ?>
                 <div class="alert alert-info">No active games available. Create a new game to get started!</div>
             <?php else: ?>
@@ -107,7 +108,11 @@ include 'views/layouts/header.php';
                                         <small class="text-muted ms-2"></small>  
                                     </p>
                                     <div class="d-flex justify-content-between align-items-center">
-                                        <a href="lobby.php?key=<?= $game['game_key'] ?>" class="btn btn-sm btn-primary">Go to Lobby</a>
+                                        <?php if ($game['status'] === 'waiting'): ?>
+                                            <a href="lobby.php?key=<?= $game['game_key'] ?>" class="btn btn-sm btn-success">Go to Lobby</a>
+                                        <?php else: ?>
+                                            <a href="game.php?key=<?= $game['game_key'] ?>" class="btn btn-sm btn-warning">Play Game</a>
+                                        <?php endif; ?>
                                         <button class="btn btn-sm btn-outline-secondary" onclick="copyLobbyLink('<?= $game['game_key'] ?>')">Share Lobby</button>
                                     </div>
                                 </div>
@@ -116,22 +121,10 @@ include 'views/layouts/header.php';
                     <?php endforeach; ?>
                 </div>
             <?php endif; ?>
+            </div>
         </div>
     </div>
-</div>
-
-
-<script>
-function copyLobbyLink(gameKey, onlyKey = false) {
-    const link = onlyKey? gameKey:`${window.location.origin}/lobby.php?key=${gameKey}`;
-    navigator.clipboard.writeText(link).then(function() {
-        console.log(onlyKey);
-        alert(onlyKey?'Lobby key copied to clipboard!':'Lobby link copied to clipboard!');
-    }, function(err) {
-        alert('Failed to copy ' + err);
-    });
-}
-</script>
+   
 <?php
 // Include footer
 include 'views/layouts/footer.php';

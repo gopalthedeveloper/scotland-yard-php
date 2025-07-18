@@ -10,7 +10,7 @@ $UserModel = new User();
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
+    header('Location: login.php?redirect=game.php?key=' . ($_GET['key'] ?? ''));
     exit();
 }
 
@@ -123,14 +123,6 @@ foreach ($boardNodes as $node) {
 // Player icons (SVG definitions)
 $playerIcons =PLAYER_ICONS;
 
-// Get error message from session
-$errorMessage = $_SESSION['game_error'] ?? '';
-unset($_SESSION['game_error']); // Clear the error after displaying
-
-// Get success message from session
-$successMessage = $_SESSION['game_success'] ?? '';
-unset($_SESSION['game_success']); // Clear the success after displaying
-
 // Set page variables for header
 $pageTitle = 'Scotland Yard - ' . htmlspecialchars($game['game_name']);
 $includeGameCSS = true;
@@ -139,262 +131,224 @@ $includeGameCSS = true;
 require_once 'views/layouts/header.php';
 ?>
 
-<div class="container-fluid mt-4">
-    <div class="board-container">
-        <div class="board-main">
-            <h2><?= htmlspecialchars($game['game_name']) ?></h2>
-            <p class="text-muted d-flex justify-content-between align-items-center">
-                <span>
-                    Status: <span class="badge bg-<?= $game['status'] == 'waiting' ? 'warning' : ($game['status'] == 'active' ? 'success' : 'danger') ?>">
-                        <?= ucfirst($game['status']) ?>
-                    </span>
-                    | Round: <?= $game['current_round'] ?> | Players: <?= $game['status'] == 'waiting'?count($humanPlayers).'/'. $game['max_players']:count($players).' total' ?>
+    <div class="board-main">
+        <h2><?= htmlspecialchars($game['game_name']) ?></h2>
+        <p class="text-muted d-flex justify-content-between align-items-center">
+            <span>
+                Status: <span class="badge bg-<?= $game['status'] == 'waiting' ? 'warning' : ($game['status'] == 'active' ? 'success' : 'danger') ?>">
+                    <?= ucfirst($game['status']) ?>
                 </span>
-                <span>
-                    <?php if ($game['status'] == 'active' || $game['status'] == 'finished'): ?>
-                    <!-- Map Zoom Controls -->
-                    <div class="map-controls d-inline-block">
-                        <button id="zoom-out" title="Zoom Out (Ctrl + -)">−</button>
-                        <span class="zoom-level" id="zoom-level">60%</span>
-                        <button id="zoom-in" title="Zoom In (Ctrl + +)">+</button>
-                        <button id="zoom-reset" title="Reset Zoom (Ctrl + 0)">Reset</button>
-                    </div>
-                    <?php endif; ?>
-                </span>
-            </p>
-
-            <?php if ($errorMessage): ?>
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <?= htmlspecialchars($errorMessage) ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            <?php endif; ?>
-
-            <?php if ($successMessage): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <?= htmlspecialchars($successMessage) ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            <?php endif; ?>
-
-
-            <?php if ($game['status'] == 'finished'): ?>
-                <div class="alert alert-info">
-                    <h4>Game Over!</h4>
-                    <p><strong><?= ucfirst($game['winner']) ?></strong> won the game!</p>
-                    <a href="index.php" class="btn btn-primary">Back to Lobby</a>
-                </div>
-            <?php endif; ?>
-
-            <!-- Game Board -->
-            <?php if ($game['status'] == 'active' || $game['status'] == 'finished'): ?>
-                <div class="game-board">
-                    <h4>Game Board</h4>
-                    
-                    
-                    
-                    <!-- SVG Definitions -->
-                    <svg id="svgs">
-                        <defs>
-                            <?php foreach ($players as $index => $player): ?>
-                                <symbol id="i-p<?= $index ?>" viewBox="<?= explode('|', $playerIcons[$index])[0] ?>">
-                                    <?= explode('|', $playerIcons[$index])[1] ?>
-                                </symbol>
-                            <?php endforeach; ?>
-                        </defs>
-                    </svg>
-
-                    <!-- Game Map -->
-                    <div id="map">
-                        <?php foreach ($players as $index => $player): ?>
-                            <?php if ($player['current_position'] && isset($nodePositions[$player['current_position']])): ?>
-                                <?php 
-                                $pos = $nodePositions[$player['current_position']];
-                                $boardScalex = 1; // Same as original game default
-                                $boardScaley = 1; // Same as original game default
-                                $centerX = 0; // Same as original game
-                                $centerY = 0; // Same as original game
-                                $x = ($pos[0] - $centerX) * $boardScalex;
-                                $y = ($pos[1] - $centerY) * $boardScaley;
-                                
-                                // Show Mr. X only to the Mr. X player, or on reveal rounds, or when game is finished
-                                $showPlayer = true;
-                                if ($player['player_type'] == 'mr_x' && $game['status'] == 'active') {
-                                    $showPlayer = ($userPlayer && $userPlayer['player_type'] == 'mr_x') || 
-                                                in_array($game['current_round'], GAME_CONFIG['reveal_rounds']) || 
-                                                $game['status'] == 'finished';
-                                }
-                                ?>
-                                <?php if ($showPlayer): ?>
-                                    <svg id="p<?= $index ?>" 
-                                         title="<?= htmlspecialchars($player['username']) ?>" 
-                                         class="player <?= ($currentPlayer['id'] == $player['id']) ? 'cur' : '' ?>" 
-                                         viewBox="<?= explode('|', $playerIcons[$index])[0] ?>"
-                                         style="left: <?= $x ?>px; top: <?= $y ?>px;">
-                                         <?= explode('|', $playerIcons[$index])[1] ?>
-
-                                        <use href="#i-p<?= $index ?>"/>
-                                    </svg>
-                                <?php endif; ?>
-                            <?php endif; ?>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <?php 
-        $canMakeMove = false;
-        if ($game['status'] == 'active' || $game['status'] == 'finished'): ?>
-        <div class="board-sidebar">
-            <div id="play">
-                <h1><?= htmlspecialchars($game['game_name']) ?>
-                    <button class="minimize-btn" id="minimize-btn" title="Minimize/Maximize">−</button>
-                </h1>
-                
-                <!-- Player Positions -->
-                <div id="playerpos">
-                    <?= $gameEngine->renderHtmlTemplate('player_sidebar', [
-                        'players' => $players,
-                        'currentPlayer' => $currentPlayer,
-                        'game' => $game,
-                        'userPlayer' => $userPlayer,
-                        'boardNodes' =>  $boardNodes
-                    ]);?>
-                </div>
-
-                <!-- Move List -->
+                | Round: <?= $game['current_round'] ?> | Players: <?= $game['status'] == 'waiting'?count($humanPlayers).'/'. $game['max_players']:count($players).' total' ?>
+            </span>
+            <span>
                 <?php if ($game['status'] == 'active' || $game['status'] == 'finished'): ?>
-                    <div id="movelist">
-                        <h4>Moves
-                            <button class="moves-minimize-btn" id="moves-minimize-btn" title="Minimize/Maximize">−</button>
-                        </h4>
-                        <div id="movetbl">
-                            <?= $gameEngine->renderHtmlTemplate('move_history', [
-                                    'gameId' => $gameId,
-                                    'players' => $players,
-                                    'game' => $game,
-                                    'userPlayer' => $userPlayer,
-                                    'moves' => $db->getGameMoves($gameId)
-                                ]);
-                            ?>
-                        </div>
-                    </div>
-
-                    <!-- Move Interface -->
-                    <?php 
-                    // Check if it's the current player's turn and they can make a move
-                    $currentPlayerForMove = null;
-                    
-                    if ($userInGame && $game['status'] == 'active') {
-                        // Check if current player is the user's player
-                        if ($currentPlayer['id'] == $userPlayer['id']) {
-                            $canMakeMove = true;
-                            $currentPlayerForMove = $userPlayer;
-                        }
-                        // Check if current player is an AI detective controlled by the user
-                        elseif ($currentPlayer['is_ai'] && $currentPlayer['user_id'] == $_SESSION['user_id']) {
-                            $canMakeMove = true;
-                            $currentPlayerForMove = $currentPlayer;
-                        }
-                    }
-                    
-                    if ($canMakeMove): 
-                    ?>
-                        <div id="movewrap">
-                            <div id="moveinfo">
-                                <h4>Round: <?= $game['current_round'] ?></h4>
-                                <?php if ($currentPlayerForMove['player_type'] == 'mr_x'): ?>
-                                    <p>T: <?= $currentPlayerForMove['taxi_tickets'] ?> B: <?= $currentPlayerForMove['bus_tickets'] ?> U: <?= $currentPlayerForMove['underground_tickets'] ?> X: <?= $currentPlayerForMove['hidden_tickets'] ?> 2: <?= $currentPlayerForMove['double_tickets'] ?></p>
-                                <?php else: ?>
-                                    <p>T: <?= $currentPlayerForMove['taxi_tickets'] ?> B: <?= $currentPlayerForMove['bus_tickets'] ?> U: <?= $currentPlayerForMove['underground_tickets'] ?></p>
-                                <?php endif; ?>
-                            </div>
-
-                            <form method="POST">
-                                <input type="hidden" name="is_hidden" id="is_hidden" value="">
-                                <input type="hidden" name="is_double_move" id="is_double_move" value="">
-                                <!-- Player Selection (for controlled detectives) -->
-                                
-                                <select id="move" name="to_position" required>
-                                    <option value="">Select destination...</option>
-                                    <?php if (is_array($possibleMoves) && count($possibleMoves) > 0): ?>
-                                        <?php foreach ($possibleMoves as $move): ?>
-                                            <option value="<?= $move['to_position'] ?>" data-transport="<?= $move['transport_type'] ?>">
-                                                <?= $move['to_position'] ?> (<?= $move['label'] ?>)
-                                            </option>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </select>
-                                
-                                <select name="transport_type" required>
-                                    <option value="">Select transport...</option>
-                                    <?php if (is_array($possibleMoves) && count($possibleMoves) > 0): ?>
-                                        <?php $uniqueTransports = [];
-                                         foreach ($possibleMoves as $move):
-                                            if(in_array($move['transport_type'], $uniqueTransports))continue;
-                                            $uniqueTransports[] = $move['transport_type'];
-                                          ?>
-                                            <option value="<?= $move['transport_type'] ?>" data-position="<?= $move['to_position'] ?>">
-                                                <?= $move['label'] ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </select>
-
-                                <?php if ($currentPlayerForMove['player_type'] == 'mr_x'): ?>
-                                    <div class="mt-3">
-                                        <button type="button" id="move-x" class="btn btn-secondary">X</button>
-                                        <?php 
-                                        // Check if double move has already been used this round
-                                        $doubleMoveUsed = $db->getGameSetting($gameId, 'double_move_used_round_' . $game['current_round']);
-                                        $doubleMoveDisabled = ($doubleMoveUsed == '1' || $currentPlayerForMove['double_tickets'] <= 0);
-                                        ?>
-                                        <button type="button" id="move-2" class="btn btn-secondary <?= $doubleMoveDisabled ? 'disabled' : '' ?>" <?= $doubleMoveDisabled ? 'disabled' : '' ?> title="<?= $doubleMoveDisabled ? 'Double move not available' : 'Double move' ?>">2</button>
-                                    </div>
-                                <?php endif; ?>
-
-                                <div class="mt-3">
-                                    <button type="submit" name="make_move" class="btn btn-primary">Go</button>
-                                </div>
-                            </form>
-                        </div>
-                    <?php endif; ?>
-                    
-                    <!-- Waiting Message -->
-                    <?php if ($userInGame && $game['status'] == 'active' && !$canMakeMove): ?>
-                        <div class="alert alert-warning">
-                            <h5>Waiting for <?= htmlspecialchars($currentPlayer['username'] ?? 'Unknown Player') ?> to make their move...</h5>
-                            <p>It's not your turn yet. Please wait for the current player to complete their move.</p>
-                        </div>
-                    <?php endif; ?>
+                <!-- Map Zoom Controls -->
+                <div class="map-controls d-inline-block">
+                    <button id="zoom-out" title="Zoom Out (Ctrl + -)">−</button>
+                    <span class="zoom-level" id="zoom-level">60%</span>
+                    <button id="zoom-in" title="Zoom In (Ctrl + +)">+</button>
+                    <button id="zoom-reset" title="Reset Zoom (Ctrl + 0)">Reset</button>
+                </div>
                 <?php endif; ?>
+            </span>
+        </p>
+
+
+        <?php if ($game['status'] == 'finished'): ?>
+            <div class="alert alert-info">
+                <h4>Game Over!</h4>
+                <p><strong><?= ucfirst($game['winner']) ?></strong> won the game!</p>
+                <a href="index.php" class="btn btn-primary">Back to Lobby</a>
             </div>
-        </div>
+        <?php endif; ?>
+
+        <!-- Game Board -->
+        <?php if ($game['status'] == 'active' || $game['status'] == 'finished'): ?>
+            <div class="game-board">
+                <h4>Game Board</h4>
+                
+                
+                
+                <!-- SVG Definitions -->
+                <svg id="svgs">
+                    <defs>
+                        <?php foreach ($players as $index => $player): ?>
+                            <symbol id="i-p<?= $index ?>" viewBox="<?= explode('|', $playerIcons[$index])[0] ?>">
+                                <?= explode('|', $playerIcons[$index])[1] ?>
+                            </symbol>
+                        <?php endforeach; ?>
+                    </defs>
+                </svg>
+
+                <!-- Game Map -->
+                <div id="map">
+                    <?php foreach ($players as $index => $player): ?>
+                        <?php if ($player['current_position'] && isset($nodePositions[$player['current_position']])): ?>
+                            <?php 
+                            $pos = $nodePositions[$player['current_position']];
+                            $boardScalex = 1; // Same as original game default
+                            $boardScaley = 1; // Same as original game default
+                            $centerX = 0; // Same as original game
+                            $centerY = 0; // Same as original game
+                            $x = ($pos[0] - $centerX) * $boardScalex;
+                            $y = ($pos[1] - $centerY) * $boardScaley;
+                            
+                            // Show Mr. X only to the Mr. X player, or on reveal rounds, or when game is finished
+                            $showPlayer = true;
+                            if ($player['player_type'] == 'mr_x' && $game['status'] == 'active') {
+                                $showPlayer = ($userPlayer && $userPlayer['player_type'] == 'mr_x') || 
+                                            in_array($game['current_round'], GAME_CONFIG['reveal_rounds']) || 
+                                            $game['status'] == 'finished';
+                            }
+                            ?>
+                            <?php if ($showPlayer): ?>
+                                <svg id="p<?= $index ?>" 
+                                        title="<?= htmlspecialchars($player['username']) ?>" 
+                                        class="player <?= ($currentPlayer['id'] == $player['id']) ? 'cur' : '' ?>" 
+                                        viewBox="<?= explode('|', $playerIcons[$index])[0] ?>"
+                                        style="left: <?= $x ?>px; top: <?= $y ?>px;">
+                                        <?= explode('|', $playerIcons[$index])[1] ?>
+
+                                    <use href="#i-p<?= $index ?>"/>
+                                </svg>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                </div>
+            </div>
         <?php endif; ?>
     </div>
-</div>
-<script src="https://code.jquery.com/jquery-3.7.1.slim.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 
-<!-- Confirmation Modal -->
-<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="confirmModalLabel">Confirm Action</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body" id="confirmModalBody">
-        Are you sure you want to proceed?
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-danger" id="confirmModalYes">Yes</button>
-      </div>
+    <?php 
+    $canMakeMove = false;
+    if ($game['status'] == 'active' || $game['status'] == 'finished'): ?>
+    <div class="board-sidebar">
+        <div id="play">
+            <h1><?= htmlspecialchars($game['game_name']) ?>
+                <button class="minimize-btn" id="minimize-btn" title="Minimize/Maximize">−</button>
+            </h1>
+            
+            <!-- Player Positions -->
+            <div id="playerpos">
+                <?= $gameEngine->renderHtmlTemplate('player_sidebar', [
+                    'players' => $players,
+                    'currentPlayer' => $currentPlayer,
+                    'game' => $game,
+                    'userPlayer' => $userPlayer,
+                    'boardNodes' =>  $boardNodes
+                ]);?>
+            </div>
+
+            <!-- Move List -->
+            <?php if ($game['status'] == 'active' || $game['status'] == 'finished'): ?>
+                <div id="movelist">
+                    <h4>Moves
+                        <button class="moves-minimize-btn" id="moves-minimize-btn" title="Minimize/Maximize">−</button>
+                    </h4>
+                    <div id="movetbl">
+                        <?= $gameEngine->renderHtmlTemplate('move_history', [
+                                'gameId' => $gameId,
+                                'players' => $players,
+                                'game' => $game,
+                                'userPlayer' => $userPlayer,
+                                'moves' => $db->getGameMoves($gameId)
+                            ]);
+                        ?>
+                    </div>
+                </div>
+
+                <!-- Move Interface -->
+                <?php 
+                // Check if it's the current player's turn and they can make a move
+                $currentPlayerForMove = null;
+                
+                if ($userInGame && $game['status'] == 'active') {
+                    // Check if current player is the user's player
+                    if ($currentPlayer['id'] == $userPlayer['id']) {
+                        $canMakeMove = true;
+                        $currentPlayerForMove = $userPlayer;
+                    }
+                    // Check if current player is an AI detective controlled by the user
+                    elseif ($currentPlayer['is_ai'] && $currentPlayer['user_id'] == $_SESSION['user_id']) {
+                        $canMakeMove = true;
+                        $currentPlayerForMove = $currentPlayer;
+                    }
+                }
+                
+                if ($canMakeMove): 
+                ?>
+                    <div id="movewrap">
+                        <div id="moveinfo">
+                            <h4>Round: <?= $game['current_round'] ?></h4>
+                            <?php if ($currentPlayerForMove['player_type'] == 'mr_x'): ?>
+                                <p>T: <?= $currentPlayerForMove['taxi_tickets'] ?> B: <?= $currentPlayerForMove['bus_tickets'] ?> U: <?= $currentPlayerForMove['underground_tickets'] ?> X: <?= $currentPlayerForMove['hidden_tickets'] ?> 2: <?= $currentPlayerForMove['double_tickets'] ?></p>
+                            <?php else: ?>
+                                <p>T: <?= $currentPlayerForMove['taxi_tickets'] ?> B: <?= $currentPlayerForMove['bus_tickets'] ?> U: <?= $currentPlayerForMove['underground_tickets'] ?></p>
+                            <?php endif; ?>
+                        </div>
+
+                        <form method="POST">
+                            <input type="hidden" name="is_hidden" id="is_hidden" value="">
+                            <input type="hidden" name="is_double_move" id="is_double_move" value="">
+                            <!-- Player Selection (for controlled detectives) -->
+                            
+                            <select id="move" name="to_position" required>
+                                <option value="">Select destination...</option>
+                                <?php if (is_array($possibleMoves) && count($possibleMoves) > 0): ?>
+                                    <?php foreach ($possibleMoves as $move): ?>
+                                        <option value="<?= $move['to_position'] ?>" data-transport="<?= $move['transport_type'] ?>">
+                                            <?= $move['to_position'] ?> (<?= $move['label'] ?>)
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
+                            
+                            <select name="transport_type" required>
+                                <option value="">Select transport...</option>
+                                <?php if (is_array($possibleMoves) && count($possibleMoves) > 0): ?>
+                                    <?php $uniqueTransports = [];
+                                        foreach ($possibleMoves as $move):
+                                        if(in_array($move['transport_type'], $uniqueTransports))continue;
+                                        $uniqueTransports[] = $move['transport_type'];
+                                        ?>
+                                        <option value="<?= $move['transport_type'] ?>" data-position="<?= $move['to_position'] ?>">
+                                            <?= $move['label'] ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
+
+                            <?php if ($currentPlayerForMove['player_type'] == 'mr_x'): ?>
+                                <div class="mt-3">
+                                    <button type="button" id="move-x" class="btn btn-secondary">X</button>
+                                    <?php 
+                                    // Check if double move has already been used this round
+                                    $doubleMoveUsed = $db->getGameSetting($gameId, 'double_move_used_round_' . $game['current_round']);
+                                    $doubleMoveDisabled = ($doubleMoveUsed == '1' || $currentPlayerForMove['double_tickets'] <= 0);
+                                    ?>
+                                    <button type="button" id="move-2" class="btn btn-secondary <?= $doubleMoveDisabled ? 'disabled' : '' ?>" <?= $doubleMoveDisabled ? 'disabled' : '' ?> title="<?= $doubleMoveDisabled ? 'Double move not available' : 'Double move' ?>">2</button>
+                                </div>
+                            <?php endif; ?>
+
+                            <div class="mt-3">
+                                <button type="submit" name="make_move" class="btn btn-primary">Go</button>
+                            </div>
+                        </form>
+                    </div>
+                <?php endif; ?>
+                
+                <!-- Waiting Message -->
+                <?php if ($userInGame && $game['status'] == 'active' && !$canMakeMove): ?>
+                    <div class="alert alert-warning">
+                        <h5>Waiting for <?= htmlspecialchars($currentPlayer['username'] ?? 'Unknown Player') ?> to make their move...</h5>
+                        <p>It's not your turn yet. Please wait for the current player to complete their move.</p>
+                    </div>
+                <?php endif; ?>
+            <?php endif; ?>
+        </div>
     </div>
-  </div>
-</div>
+    <?php endif; ?>
+   
 
 <?php
 // Start output buffering to capture JavaScript

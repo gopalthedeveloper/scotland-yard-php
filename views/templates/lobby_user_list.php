@@ -11,7 +11,7 @@
             <?php foreach ($players as $player): ?>
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                     <span>
-                        <strong><?= htmlspecialchars($player['username']) ?></strong>
+                        <strong><?= htmlspecialchars($player['username']??'') ?></strong>
                         <?php if ($player['user_id'] === null || $player['is_ai'] == 1): ?>
                             <span class="badge bg-secondary ms-2">AI</span>
                         <?php endif; ?>

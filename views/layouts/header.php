@@ -8,7 +8,6 @@ if (session_status() === PHP_SESSION_NONE) {
 $pageTitle = $pageTitle ?? 'Scotland Yard';
 $includeGameCSS = $includeGameCSS ?? false;
 $includeCustomJS = $includeCustomJS ?? '';
-$showNavbar = $showNavbar ?? true;
 $user = $user ?? null;
 
 // Get current user if not provided
@@ -17,6 +16,14 @@ if (!$user && isset($_SESSION['user_id'])) {
     $db = new Database();
     $user = $db->getUserById($_SESSION['user_id']);
 }
+
+// Get error message from session
+$errorMessage = $_SESSION['game_error'] ?? '';
+unset($_SESSION['game_error']); // Clear the error after displaying
+
+// Get success message from session
+$successMessage = $_SESSION['game_success'] ?? '';
+unset($_SESSION['game_success']); // Clear the success after displaying
 
 require_once 'model/config.php';
 ?>
@@ -57,26 +64,38 @@ require_once 'model/config.php';
     </style>
 </head>
 <body class="<?= $pageClass ?? '' ?>">
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark header">
-    <div class="container">
-        <a class="navbar-brand" href="index.php">
-          <img src="assets/images/logo.svg" alt="Scotland Yard" height="30" class="d-inline-block align-text-top me-2">
-        </a>
-        <div class="navbar-nav ms-auto">
-            <?php if ($showNavbar && $user): ?>
-              <span class="navbar-text me-3"><?= htmlspecialchars($user['username']) ?></span>
-              <?php if (basename($_SERVER['PHP_SELF']) !== 'index.php'): ?>
-              <a class="nav-link" href="index.php">Lobby</a>
-              <?php endif; ?>
-              <a class="nav-link" href="logout.php">Logout</a>
-            <?php else: ?>
-              <a class="nav-link" href="login.php">Login</a>
-              <a class="nav-link" href="register.php">Register</a>
-            <?php endif; ?>
-
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark header">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.php">
+            <img src="assets/images/logo.svg" alt="Scotland Yard" height="30" class="d-inline-block align-text-top me-2">
+            </a>
+            <div class="navbar-nav ms-auto">
+                <?php if ($user): ?>
+                <span class="navbar-text me-3"><?= htmlspecialchars($user['username']) ?></span>
+                <?php if (basename($_SERVER['PHP_SELF']) !== 'index.php'): ?>
+                <a class="nav-link" href="index.php">Home</a>
+                <?php endif; ?>
+                <a class="nav-link" href="logout.php">Logout</a>
+                <?php else: ?>
+                <a class="nav-link" href="login.php">Login</a>
+                <a class="nav-link" href="register.php">Register</a>
+                <?php endif; ?>
+            </div>
         </div>
-    </div>
-</nav>
+    </nav>
+    <div class="container-fluid mt-4">
+        <div class="board-container alert-container">
+    
+        <?php if ($errorMessage): ?>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <?= htmlspecialchars($errorMessage) ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
 
-</body>
-</html> 
+        <?php if ($successMessage): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <?= htmlspecialchars($successMessage) ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
