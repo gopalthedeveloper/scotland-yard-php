@@ -18,7 +18,7 @@ include 'views/layouts/header.php';
                 <p class="text-muted">The URL you are trying to access is invalid.</p>
             </div>
             <div class="d-flex justify-content-center">
-                <a href="index.php" class="btn btn-primary">Go to Home</a>
+                <a href="/" class="btn btn-primary">Go to Home</a>
             </div>
         </div>
     </div>

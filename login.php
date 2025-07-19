@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Location: ' . $_GET['redirect']);
                 exit();
             } 
-            header('Location: index.php');
+            header('Location: /');
             exit();
         } else {
             $error = 'Invalid username or password.';

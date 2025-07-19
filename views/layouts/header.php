@@ -75,7 +75,7 @@ require_once 'model/config.php';
 <body class="<?= $pageClass ?? '' ?>">
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark header">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.php">
+            <a class="navbar-brand" href="/">
             <img src="assets/images/logo.svg" alt="Scotland Yard" height="30" class="d-inline-block align-text-top me-2">
             </a>
             <div class="navbar-nav ms-auto">
@@ -87,7 +87,7 @@ require_once 'model/config.php';
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                         <?php if (basename($_SERVER['PHP_SELF']) !== 'index.php'): ?>
-                        <li><a class="dropdown-item" href="index.php">Home</a></li>
+                        <li><a class="dropdown-item" href="/">Home</a></li>
                         <?php endif; ?>
                         <li><a class="dropdown-item" href="profile.php">Profile</a></li>
                         <li><hr class="dropdown-divider"></li>

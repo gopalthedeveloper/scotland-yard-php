@@ -17,13 +17,13 @@ if (!isset($_SESSION['user_id'])) {
 
 $gameKey = $_GET['key'] ?? null;
 if (!$gameKey) {
-    header('Location: index.php');
+    header('Location: /');
     exit();
 }
 
 $game = $db->getGameByKey($gameKey);
 if (!$game) {
-    header('Location: index.php');
+    header('Location: /');
     exit();
 }
 $gameId = $game['id'];
@@ -158,7 +158,7 @@ require_once 'views/layouts/header.php';
             <div class="alert alert-info">
                 <h4>Game Over!</h4>
                 <p><strong><?= ucfirst($game['winner']) ?></strong> won the game!</p>
-                <a href="index.php" class="btn btn-primary">Back to Lobby</a>
+                <a href="/" class="btn btn-primary">Back to Lobby</a>
             </div>
         <?php endif; ?>
 
